@@ -1,0 +1,372 @@
+/* src/app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --choco-blue: #7ca1eb;
+  --choco-blue-dark: #6b90da;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Neobrutalism Custom Styles */
+@layer components {
+  .neo-button {
+    @apply font-bold border-2 border-black transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .neo-button-primary {
+    @apply bg-[#7ca1eb] text-white hover:bg-[#6b90da] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px];
+  }
+
+  .neo-button-secondary {
+    @apply bg-gray-200 text-gray-800 hover:bg-gray-300 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px];
+  }
+
+  .neo-card {
+    @apply bg-white border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)];
+  }
+
+  .neo-input {
+    @apply w-full px-4 py-3 text-black font-medium border-2 border-black bg-white focus:outline-none focus:ring-0 focus:border-[#7ca1eb] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] focus:shadow-[2px_2px_0px_0px_rgba(124,161,235,1)] focus:translate-x-[2px] focus:translate-y-[2px] transition-all duration-200;
+  }
+
+  .neo-table {
+    @apply w-full border-2 border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)];
+  }
+
+  .neo-badge {
+    @apply inline-flex items-center font-bold border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)];
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border: 1px solid #000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #7ca1eb;
+  border: 1px solid #000;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b90da;
+}
+
+/* Loading animations */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Pulse animation for notifications */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .neo-card {
+    @apply shadow-[4px_4px_0px_0px_rgba(0,0,0,1)];
+  }
+  
+  .neo-button-primary,
+  .neo-button-secondary {
+    @apply shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)];
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .neo-card {
+    @apply shadow-none border border-gray-300;
+  }
+  
+  .neo-button-primary,
+  .neo-button-secondary {
+    @apply shadow-none;
+  }
+}
+
+/* Focus styles for accessibility */
+.focus-visible {
+  @apply outline-2 outline-offset-2 outline-[#7ca1eb];
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .neo-button-primary {
+    @apply bg-blue-700 hover:bg-blue-800;
+  }
+  
+  .neo-input {
+    @apply border-4;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Custom utilities for Chocorocks theme */
+.text-choco-blue {
+  color: var(--choco-blue);
+}
+
+.bg-choco-blue {
+  background-color: var(--choco-blue);
+}
+
+.border-choco-blue {
+  border-color: var(--choco-blue);
+}
+
+.shadow-choco-blue {
+  box-shadow: 4px 4px 0px 0px var(--choco-blue);
+}
+
+/* Dashboard specific styles */
+.dashboard-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6;
+}
+
+.kpi-card {
+  @apply neo-card p-6 hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all duration-200;
+}
+
+/* Table styles */
+.data-table th {
+  @apply bg-[#7ca1eb] text-white font-bold px-4 py-3 text-left border-r-2 border-black last:border-r-0;
+}
+
+.data-table td {
+  @apply px-4 py-3 border-r-2 border-black last:border-r-0 border-t-2;
+}
+
+.data-table tr:hover {
+  @apply bg-gray-50;
+}
+
+/* Form styles */
+.form-group {
+  @apply space-y-2;
+}
+
+.form-label {
+  @apply block text-sm font-bold text-gray-700;
+}
+
+.form-error {
+  @apply text-sm text-red-500 font-medium;
+}
+
+/* Modal styles */
+.modal-overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4;
+}
+
+.modal-content {
+  @apply bg-white border-2 border-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-w-lg w-full max-h-[90vh] overflow-y-auto;
+}
+
+/* Alert styles */
+.alert-info {
+  @apply bg-blue-100 text-blue-800 border-blue-500;
+}
+
+.alert-success {
+  @apply bg-green-100 text-green-800 border-green-500;
+}
+
+.alert-warning {
+  @apply bg-yellow-100 text-yellow-800 border-yellow-500;
+}
+
+.alert-error {
+  @apply bg-red-100 text-red-800 border-red-500;
+}
+
+/* Sidebar styles */
+.sidebar-link {
+  @apply flex items-center space-x-3 px-4 py-3 font-medium border-2 border-black transition-all duration-200 hover:translate-x-[2px] hover:translate-y-[2px];
+}
+
+.sidebar-link.active {
+  @apply bg-[#7ca1eb] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] translate-x-[2px] translate-y-[2px];
+}
+
+.sidebar-link:not(.active) {
+  @apply bg-gray-100 text-gray-700 hover:bg-gray-200 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)];
+}
+
+/* Loading states */
+.loading-skeleton {
+  @apply animate-pulse bg-gray-200 border-2 border-gray-300;
+}
+
+.loading-dots::after {
+  content: '';
+  animation: loading-dots 1.4s infinite;
+}
+
+@keyframes loading-dots {
+  0%, 20% {
+    content: '.';
+  }
+  40% {
+    content: '..';
+  }
+  60%, 100% {
+    content: '...';
+  }
+}
+
+/* Empty states */
+.empty-state {
+  @apply text-center py-12 text-gray-500;
+}
+
+.empty-state-icon {
+  @apply w-16 h-16 mx-auto mb-4 text-gray-300;
+}
+
+/* Success states */
+.success-state {
+  @apply text-center py-12 text-green-600;
+}
+
+.success-state-icon {
+  @apply w-16 h-16 mx-auto mb-4 text-green-500;
+}
+
+/* Responsive utilities */
+@media (max-width: 640px) {
+  .mobile-stack {
+    @apply flex-col space-y-2 space-x-0;
+  }
+  
+  .mobile-full {
+    @apply w-full;
+  }
+  
+  .mobile-hide {
+    @apply hidden;
+  }
+}
+
+/* Tablet utilities */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .tablet-hide {
+    @apply hidden;
+  }
+}
+
+/* Desktop utilities */
+@media (min-width: 1025px) {
+  .desktop-only {
+    @apply block;
+  }
+}
+
+/* Print utilities */
+@media print {
+  .print-hide {
+    @apply hidden;
+  }
+  
+  .print-page-break {
+    page-break-before: always;
+  }
+  
+  .print-no-break {
+    page-break-inside: avoid;
+  }
+}
