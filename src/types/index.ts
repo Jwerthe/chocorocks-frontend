@@ -38,7 +38,7 @@ export enum MovementReason {
   EXPIRED = 'EXPIRED'
 }
 
-// Base Entity
+// Base Entity interface
 export interface BaseEntity {
   id: number;
   createdAt: string;
@@ -148,6 +148,17 @@ export interface StoreResponse extends BaseEntity {
 export interface User extends BaseEntity {
   name: string;
   email: string;
+  role: UserRole;
+  typeIdentification: IdentificationType;
+  identificationNumber: string;
+  phoneNumber?: string;
+  isActive: boolean;
+}
+
+export interface UserRequest {
+  name: string;
+  email: string;
+  passwordHash: string;
   role: UserRole;
   typeIdentification: IdentificationType;
   identificationNumber: string;
@@ -327,4 +338,46 @@ export interface DashboardData {
   lowStockAlerts: number;
   recentMovements: InventoryMovementResponse[];
   stockAlerts: StockAlert[];
+}
+
+// UI Component prop types
+export interface SelectOption {
+  value: string | number;
+  label: string;
+  disabled?: boolean;
+}
+
+export interface TableColumn<T = any> {
+  key: string;
+  header: string;
+  render?: (value: any, row: T) => React.ReactNode;
+  className?: string;
+  sortable?: boolean;
+}
+
+// Error types
+export interface ApiErrorResponse {
+  message: string;
+  status: number;
+  timestamp: string;
+  path: string;
+}
+
+// Form validation types
+export interface ValidationError {
+  field: string;
+  message: string;
+}
+
+export interface FormErrors {
+  [key: string]: string;
+}
+
+// Notification types
+export interface NotificationMessage {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  duration?: number;
+  timestamp: number;
 }

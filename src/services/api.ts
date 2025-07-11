@@ -15,13 +15,25 @@ import {
   ProductStoreResponse,
   ProductFilters,
   InventoryFilters,
-  PaginatedResponse,
   StockAlert,
   DashboardData
 } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 const BASE_PATH = '/chocorocks/api';
+
+// Generic API error class
+export class ApiError extends Error {
+  public status: number;
+  public data?: any;
+
+  constructor(message: string, status: number, data?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+  }
+}
 
 // Generic API class
 class ApiService {
@@ -37,7 +49,7 @@ class ApiService {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     
-    const defaultHeaders = {
+    const defaultHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
@@ -53,7 +65,17 @@ class ApiService {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        let errorData: any = null;
+
+        try {
+          errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = response.statusText || errorMessage;
+        }
+
+        throw new ApiError(errorMessage, response.status, errorData);
       }
 
       const contentType = response.headers.get('content-type');
@@ -63,8 +85,15 @@ class ApiService {
       
       return response as unknown as T;
     } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      
       console.error('API request failed:', error);
-      throw error;
+      throw new ApiError(
+        error instanceof Error ? error.message : 'Network error occurred',
+        0
+      );
     }
   }
 
@@ -176,7 +205,8 @@ export class ProductAPI extends ApiService {
     if (filters.page) params.append('page', filters.page.toString());
     if (filters.size) params.append('size', filters.size.toString());
 
-    return this.customRequest<ProductResponse[]>(`/search?${params.toString()}`);
+    const endpoint = params.toString() ? `/search?${params.toString()}` : '';
+    return this.customRequest<ProductResponse[]>(endpoint);
   }
 
   async getProductsByCategory(categoryId: number): Promise<ProductResponse[]> {

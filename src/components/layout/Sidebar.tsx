@@ -1,7 +1,7 @@
 // src/components/layout/Sidebar.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -10,10 +10,16 @@ interface SidebarProps {
   onClose: () => void;
 }
 
+interface MenuItem {
+  name: string;
+  href: string;
+  icon: React.ReactNode;
+}
+
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
 
-  const menuItems = [
+  const menuItems: MenuItem[] = [
     {
       name: 'Dashboard',
       href: '/',
@@ -62,40 +68,38 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     },
   ];
 
-  const isActive = (href: string) => {
+  const isActive = (href: string): boolean => {
     if (href === '/') {
       return pathname === '/';
     }
     return pathname.startsWith(href);
   };
 
-  return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={onClose}
-        />
-      )}
+  const handleLinkClick = (): void => {
+    onClose();
+  };
 
-      {/* Sidebar */}
-      <div className={`
-        fixed top-0 left-0 z-50 h-full w-64 bg-white border-r-2 border-black
-        shadow-[8px_0px_0px_0px_rgba(0,0,0,1)] transform transition-transform duration-300 ease-in-out
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:z-auto
-      `}>
+  return (
+    <div className={`
+      fixed top-0 left-0 z-50 h-full w-64 bg-white border-r-2 border-black
+      shadow-[8px_0px_0px_0px_rgba(0,0,0,1)] transform transition-transform duration-300 ease-in-out
+      ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
+    `}>
+      {/* Layout en columna */}
+      <div className="flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b-2 border-black bg-[#7ca1eb]">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-white border-2 border-black flex items-center justify-center font-bold">
+            <div className="w-8 h-8 bg-white border-2 border-black flex items-center justify-center font-bold text-[#7ca1eb]">
               C
             </div>
             <h2 className="text-xl font-bold text-white">Chocorocks</h2>
           </div>
           <button
             onClick={onClose}
-            className="lg:hidden text-white hover:text-gray-200"
+            className="lg:hidden text-white hover:text-gray-200 p-1"
+            type="button"
+            aria-label="Cerrar menú"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -104,13 +108,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="p-4">
+        <nav className="p-4 flex-1 overflow-y-auto">
           <ul className="space-y-2">
             {menuItems.map((item) => (
               <li key={item.name}>
                 <Link
                   href={item.href}
-                  onClick={onClose}
+                  onClick={handleLinkClick}
                   className={`
                     flex items-center space-x-3 px-4 py-3 font-medium border-2 border-black
                     transition-all duration-200 hover:translate-x-[2px] hover:translate-y-[2px]
@@ -129,13 +133,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </nav>
 
         {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t-2 border-black bg-gray-50">
+        <div className="p-4 border-t-2 border-black bg-gray-50">
           <div className="text-center text-sm text-gray-600">
             <p className="font-medium">Sistema de Inventario</p>
             <p>v1.0.0</p>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
+
 };
