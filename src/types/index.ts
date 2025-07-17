@@ -1,4 +1,4 @@
-// src/types/index.ts
+// src/types/index.ts (Updated with Sales types)
 
 // Enums from backend
 export enum UserRole {
@@ -38,7 +38,7 @@ export enum MovementReason {
   EXPIRED = 'EXPIRED'
 }
 
-// Base Entity interface
+// Base Entity
 export interface BaseEntity {
   id: number;
   createdAt: string;
@@ -59,6 +59,72 @@ export interface CategoryRequest {
 export interface CategoryResponse extends BaseEntity {
   name: string;
   description?: string;
+}
+
+// Client Types
+export interface Client extends BaseEntity {
+  nameLastname: string;
+  typeIdentification: IdentificationType;
+  identificationNumber: string;
+  phoneNumber?: string;
+  email?: string;
+  address?: string;
+  requiresInvoice: boolean;
+  isActive: boolean;
+}
+
+export interface ClientRequest {
+  nameLastname: string;
+  typeIdentification: IdentificationType;
+  identificationNumber: string;
+  phoneNumber?: string;
+  email?: string;
+  address?: string;
+  requiresInvoice: boolean;
+  isActive: boolean;
+}
+
+export interface ClientResponse extends BaseEntity {
+  nameLastname: string;
+  typeIdentification: IdentificationType;
+  identificationNumber: string;
+  phoneNumber?: string;
+  email?: string;
+  address?: string;
+  requiresInvoice: boolean;
+  isActive: boolean;
+}
+
+// User Types
+export interface User extends BaseEntity {
+  name: string;
+  email: string;
+  role: UserRole;
+  typeIdentification: IdentificationType;
+  identificationNumber: string;
+  phoneNumber?: string;
+  isActive: boolean;
+}
+
+export interface UserRequest {
+  name: string;
+  email: string;
+  passwordHash: string;
+  role: UserRole;
+  typeIdentification: IdentificationType;
+  identificationNumber: string;
+  phoneNumber?: string;
+  isActive: boolean;
+}
+
+export interface UserResponse extends BaseEntity {
+  name: string;
+  email: string;
+  role: UserRole;
+  typeIdentification: IdentificationType;
+  identificationNumber: string;
+  phoneNumber?: string;
+  isActive: boolean;
 }
 
 // Product Types
@@ -144,38 +210,6 @@ export interface StoreResponse extends BaseEntity {
   isActive: boolean;
 }
 
-// User Types
-export interface User extends BaseEntity {
-  name: string;
-  email: string;
-  role: UserRole;
-  typeIdentification: IdentificationType;
-  identificationNumber: string;
-  phoneNumber?: string;
-  isActive: boolean;
-}
-
-export interface UserRequest {
-  name: string;
-  email: string;
-  passwordHash: string;
-  role: UserRole;
-  typeIdentification: IdentificationType;
-  identificationNumber: string;
-  phoneNumber?: string;
-  isActive: boolean;
-}
-
-export interface UserResponse extends BaseEntity {
-  name: string;
-  email: string;
-  role: UserRole;
-  typeIdentification: IdentificationType;
-  identificationNumber: string;
-  phoneNumber?: string;
-  isActive: boolean;
-}
-
 // ProductBatch Types
 export interface ProductBatch extends BaseEntity {
   batchCode: string;
@@ -235,6 +269,82 @@ export interface ProductStoreResponse extends BaseEntity {
   currentStock: number;
   minStockLevel: number;
   lastUpdated: string;
+}
+
+// Sale Types
+export interface Sale extends BaseEntity {
+  saleNumber: string;
+  user: User;
+  client?: Client;
+  store: Store;
+  saleType: SaleType;
+  subtotal: number;
+  discountPercentage: number;
+  discountAmount: number;
+  taxPercentage: number;
+  taxAmount: number;
+  totalAmount: number;
+  paymentMethod?: string;
+  notes?: string;
+  isInvoiced: boolean;
+}
+
+export interface SaleRequest {
+  saleNumber: string;
+  userId: number;
+  clientId?: number;
+  storeId: number;
+  saleType: SaleType;
+  discountPercentage: number;
+  discountAmount: number;
+  taxPercentage: number;
+  taxAmount: number;
+  paymentMethod?: string;
+  notes?: string;
+  isInvoiced: boolean;
+}
+
+export interface SaleResponse extends BaseEntity {
+  saleNumber: string;
+  user: UserResponse;
+  client?: ClientResponse;
+  store: StoreResponse;
+  saleType: SaleType;
+  subtotal: number;
+  discountPercentage: number;
+  discountAmount: number;
+  taxPercentage: number;
+  taxAmount: number;
+  totalAmount: number;
+  paymentMethod?: string;
+  notes?: string;
+  isInvoiced: boolean;
+}
+
+// SaleDetail Types
+export interface SaleDetail extends BaseEntity {
+  sale: Sale;
+  product: Product;
+  batch?: ProductBatch;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+export interface SaleDetailRequest {
+  saleId: number;
+  productId: number;
+  batchId?: number;
+  quantity: number;
+}
+
+export interface SaleDetailResponse extends BaseEntity {
+  sale: SaleResponse;
+  product: ProductResponse;
+  batch?: ProductBatchResponse;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
 }
 
 // InventoryMovement Types
@@ -321,6 +431,17 @@ export interface InventoryFilters {
   size?: number;
 }
 
+export interface SaleFilters {
+  search?: string;
+  storeId?: number;
+  saleType?: SaleType;
+  startDate?: string;
+  endDate?: string;
+  isInvoiced?: boolean;
+  page?: number;
+  size?: number;
+}
+
 // Stock Alert
 export interface StockAlert {
   product: ProductResponse;
@@ -338,46 +459,4 @@ export interface DashboardData {
   lowStockAlerts: number;
   recentMovements: InventoryMovementResponse[];
   stockAlerts: StockAlert[];
-}
-
-// UI Component prop types
-export interface SelectOption {
-  value: string | number;
-  label: string;
-  disabled?: boolean;
-}
-
-export interface TableColumn<T = any> {
-  key: string;
-  header: string;
-  render?: (value: any, row: T) => React.ReactNode;
-  className?: string;
-  sortable?: boolean;
-}
-
-// Error types
-export interface ApiErrorResponse {
-  message: string;
-  status: number;
-  timestamp: string;
-  path: string;
-}
-
-// Form validation types
-export interface ValidationError {
-  field: string;
-  message: string;
-}
-
-export interface FormErrors {
-  [key: string]: string;
-}
-
-// Notification types
-export interface NotificationMessage {
-  id: string;
-  message: string;
-  type: 'success' | 'error' | 'warning' | 'info';
-  duration?: number;
-  timestamp: number;
 }

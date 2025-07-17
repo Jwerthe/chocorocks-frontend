@@ -1,9 +1,9 @@
-// src/services/api.ts
+// src/services/api.ts (Updated with Sales APIs)
 
-import { 
-  CategoryRequest, 
-  CategoryResponse, 
-  ProductRequest, 
+import {
+  CategoryRequest,
+  CategoryResponse,
+  ProductRequest,
   ProductResponse,
   ProductBatchRequest,
   ProductBatchResponse,
@@ -13,14 +13,19 @@ import {
   InventoryMovementResponse,
   ProductStoreRequest,
   ProductStoreResponse,
+  ClientRequest,
+  ClientResponse,
+  SaleRequest,
+  SaleResponse,
+  SaleDetailRequest,
+  SaleDetailResponse,
+  UserRequest,
+  UserResponse,
   ProductFilters,
   InventoryFilters,
   StockAlert,
-  DashboardData
+  DashboardData,
 } from '@/types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-const BASE_PATH = '/chocorocks/api';
 
 // Generic API error class
 export class ApiError extends Error {
@@ -40,15 +45,15 @@ class ApiService {
   private baseUrl: string;
 
   constructor(endpoint: string) {
-    this.baseUrl = `${API_BASE_URL}${BASE_PATH}${endpoint}`;
+    this.baseUrl = `/api${endpoint}`; // ✅ Usa proxy de Next.js
   }
 
   private async request<T>(
-    endpoint: string, 
+    endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     const defaultHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -63,7 +68,7 @@ class ApiService {
 
     try {
       const response = await fetch(url, config);
-      
+
       if (!response.ok) {
         let errorMessage = `HTTP error! status: ${response.status}`;
         let errorData: any = null;
@@ -82,13 +87,13 @@ class ApiService {
       if (contentType && contentType.includes('application/json')) {
         return await response.json();
       }
-      
+
       return response as unknown as T;
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
       }
-      
+
       console.error('API request failed:', error);
       throw new ApiError(
         error instanceof Error ? error.message : 'Network error occurred',
@@ -113,7 +118,7 @@ class ApiService {
   }
 
   async update<TRequest, TResponse>(
-    id: number, 
+    id: number,
     data: TRequest
   ): Promise<TResponse> {
     return this.request<TResponse>(`/${id}`, {
@@ -129,7 +134,7 @@ class ApiService {
   }
 
   async customRequest<T>(
-    endpoint: string, 
+    endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     return this.request<T>(endpoint, options);
@@ -155,7 +160,7 @@ export class CategoryAPI extends ApiService {
   }
 
   async updateCategory(
-    id: number, 
+    id: number,
     data: CategoryRequest
   ): Promise<CategoryResponse> {
     return this.update<CategoryRequest, CategoryResponse>(id, data);
@@ -185,7 +190,7 @@ export class ProductAPI extends ApiService {
   }
 
   async updateProduct(
-    id: number, 
+    id: number,
     data: ProductRequest
   ): Promise<ProductResponse> {
     return this.update<ProductRequest, ProductResponse>(id, data);
@@ -197,7 +202,7 @@ export class ProductAPI extends ApiService {
 
   async searchProducts(filters: ProductFilters): Promise<ProductResponse[]> {
     const params = new URLSearchParams();
-    
+
     if (filters.search) params.append('search', filters.search);
     if (filters.categoryId) params.append('categoryId', filters.categoryId.toString());
     if (filters.flavor) params.append('flavor', filters.flavor);
@@ -211,6 +216,138 @@ export class ProductAPI extends ApiService {
 
   async getProductsByCategory(categoryId: number): Promise<ProductResponse[]> {
     return this.customRequest<ProductResponse[]>(`/category/${categoryId}`);
+  }
+}
+
+// Client API
+export class ClientAPI extends ApiService {
+  constructor() {
+    super('/clients');
+  }
+
+  async getAllClients(): Promise<ClientResponse[]> {
+    return this.getAll<ClientResponse>();
+  }
+
+  async getClientById(id: number): Promise<ClientResponse> {
+    return this.getById<ClientResponse>(id);
+  }
+
+  async createClient(data: ClientRequest): Promise<ClientResponse> {
+    return this.create<ClientRequest, ClientResponse>(data);
+  }
+
+  async updateClient(id: number, data: ClientRequest): Promise<ClientResponse> {
+    return this.update<ClientRequest, ClientResponse>(id, data);
+  }
+
+  async deleteClient(id: number): Promise<void> {
+    return this.delete(id);
+  }
+
+  async getActiveClients(): Promise<ClientResponse[]> {
+    return this.customRequest<ClientResponse[]>('/active');
+  }
+}
+
+// User API
+export class UserAPI extends ApiService {
+  constructor() {
+    super('/users');
+  }
+
+  async getAllUsers(): Promise<UserResponse[]> {
+    return this.getAll<UserResponse>();
+  }
+
+  async getUserById(id: number): Promise<UserResponse> {
+    return this.getById<UserResponse>(id);
+  }
+
+  async createUser(data: UserRequest): Promise<UserResponse> {
+    return this.create<UserRequest, UserResponse>(data);
+  }
+
+  async updateUser(id: number, data: UserRequest): Promise<UserResponse> {
+    return this.update<UserRequest, UserResponse>(id, data);
+  }
+
+  async deleteUser(id: number): Promise<void> {
+    return this.delete(id);
+  }
+
+  async getActiveUsers(): Promise<UserResponse[]> {
+    return this.customRequest<UserResponse[]>('/active');
+  }
+}
+
+// Sale API
+export class SaleAPI extends ApiService {
+  constructor() {
+    super('/sales');
+  }
+
+  async getAllSales(): Promise<SaleResponse[]> {
+    return this.getAll<SaleResponse>();
+  }
+
+  async getSaleById(id: number): Promise<SaleResponse> {
+    return this.getById<SaleResponse>(id);
+  }
+
+  async createSale(data: SaleRequest): Promise<SaleResponse> {
+    return this.create<SaleRequest, SaleResponse>(data);
+  }
+
+  async updateSale(id: number, data: SaleRequest): Promise<SaleResponse> {
+    return this.update<SaleRequest, SaleResponse>(id, data);
+  }
+
+  async deleteSale(id: number): Promise<void> {
+    return this.delete(id);
+  }
+
+  async getSalesByStore(storeId: number): Promise<SaleResponse[]> {
+    return this.customRequest<SaleResponse[]>(`/store/${storeId}`);
+  }
+
+  async getSalesByUser(userId: number): Promise<SaleResponse[]> {
+    return this.customRequest<SaleResponse[]>(`/user/${userId}`);
+  }
+
+  async getSalesByDateRange(startDate: string, endDate: string): Promise<SaleResponse[]> {
+    return this.customRequest<SaleResponse[]>(`/date-range?start=${startDate}&end=${endDate}`);
+  }
+}
+
+// SaleDetail API
+export class SaleDetailAPI extends ApiService {
+  constructor() {
+    super('/sale-details');
+  }
+
+  async getAllSaleDetails(): Promise<SaleDetailResponse[]> {
+    return this.getAll<SaleDetailResponse>();
+  }
+
+  async getSaleDetailById(id: number): Promise<SaleDetailResponse> {
+    return this.getById<SaleDetailResponse>(id);
+  }
+
+  async createSaleDetail(data: SaleDetailRequest): Promise<SaleDetailResponse> {
+    return this.create<SaleDetailRequest, SaleDetailResponse>(data);
+  }
+
+  async updateSaleDetail(id: number, data: SaleDetailRequest): Promise<SaleDetailResponse> {
+    return this.update<SaleDetailRequest, SaleDetailResponse>(id, data);
+  }
+
+  async deleteSaleDetail(id: number): Promise<void> {
+    return this.delete(id);
+  }
+
+  async getSaleDetailsBySale(saleId: number): Promise<SaleDetailResponse[]> {
+    return this.customRequest<SaleDetailResponse[]>(`/sale/${saleId}`);
   }
 }
 
@@ -264,7 +401,7 @@ export class ProductBatchAPI extends ApiService {
   }
 
   async updateBatch(
-    id: number, 
+    id: number,
     data: ProductBatchRequest
   ): Promise<ProductBatchResponse> {
     return this.update<ProductBatchRequest, ProductBatchResponse>(id, data);
@@ -306,7 +443,7 @@ export class ProductStoreAPI extends ApiService {
   }
 
   async updateProductStore(
-    id: number, 
+    id: number,
     data: ProductStoreRequest
   ): Promise<ProductStoreResponse> {
     return this.update<ProductStoreRequest, ProductStoreResponse>(id, data);
@@ -348,7 +485,7 @@ export class InventoryMovementAPI extends ApiService {
   }
 
   async updateMovement(
-    id: number, 
+    id: number,
     data: InventoryMovementRequest
   ): Promise<InventoryMovementResponse> {
     return this.update<InventoryMovementRequest, InventoryMovementResponse>(id, data);
@@ -367,7 +504,7 @@ export class InventoryMovementAPI extends ApiService {
   }
 
   async getMovementsByDateRange(
-    startDate: string, 
+    startDate: string,
     endDate: string
   ): Promise<InventoryMovementResponse[]> {
     return this.customRequest<InventoryMovementResponse[]>(
@@ -377,7 +514,7 @@ export class InventoryMovementAPI extends ApiService {
 
   async filterMovements(filters: InventoryFilters): Promise<InventoryMovementResponse[]> {
     const params = new URLSearchParams();
-    
+
     if (filters.storeId) params.append('storeId', filters.storeId.toString());
     if (filters.productId) params.append('productId', filters.productId.toString());
     if (filters.movementType) params.append('movementType', filters.movementType);
@@ -413,6 +550,10 @@ export class DashboardAPI extends ApiService {
 // Export API instances
 export const categoryAPI = new CategoryAPI();
 export const productAPI = new ProductAPI();
+export const clientAPI = new ClientAPI();
+export const userAPI = new UserAPI();
+export const saleAPI = new SaleAPI();
+export const saleDetailAPI = new SaleDetailAPI();
 export const storeAPI = new StoreAPI();
 export const productBatchAPI = new ProductBatchAPI();
 export const productStoreAPI = new ProductStoreAPI();

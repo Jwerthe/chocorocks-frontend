@@ -1,4 +1,4 @@
-// src/components/layout/Sidebar.tsx
+// src/components/layout/Sidebar.tsx (Updated with Sales)
 'use client';
 
 import React from 'react';
@@ -45,6 +45,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
           <path fillRule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
+        </svg>
+      )
+    },
+    {
+      name: 'Ventas',
+      href: '/sales',
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
+        </svg>
+      )
+    },
+    {
+      name: 'Tiendas',
+      href: '/stores',
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm3 5a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1z" clipRule="evenodd" />
+        </svg>
+      )
+    },
+    {
+      name: 'Clientes',
+      href: '/clients',
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
         </svg>
       )
     },
@@ -142,5 +169,4 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       </div>
     </div>
   );
-
 };

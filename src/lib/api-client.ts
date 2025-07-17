@@ -1,10 +1,7 @@
-// src/lib/api-client.ts
 class ApiClient {
-  private baseURL: string;
   private timeout: number;
 
-  constructor(baseURL: string = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080', timeout: number = 30000) {
-    this.baseURL = baseURL;
+  constructor(timeout: number = 30000) {
     this.timeout = timeout;
   }
 
@@ -12,8 +9,8 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseURL}/chocorocks/api${endpoint}`;
-    
+    const url = `/api${endpoint}`; // 🚨 Cambiado para usar el proxy
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
@@ -33,7 +30,7 @@ class ApiClient {
     try {
       const response = await fetch(url, config);
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -42,7 +39,7 @@ class ApiClient {
       if (contentType && contentType.includes('application/json')) {
         return await response.json();
       }
-      
+
       return response as unknown as T;
     } catch (error) {
       clearTimeout(timeoutId);

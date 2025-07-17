@@ -12,13 +12,17 @@ import {
   DashboardData, 
   StockAlert, 
   InventoryMovementResponse,
-  ProductBatchResponse 
+  ProductBatchResponse,
+  StoreResponse,
+  ClientResponse
 } from '@/types';
 import { 
   dashboardAPI, 
   productStoreAPI, 
   inventoryMovementAPI,
-  productBatchAPI 
+  productBatchAPI,
+  clientAPI,
+  storeAPI
 } from '@/services/api';
 
 interface TableColumn<T> {
@@ -34,6 +38,8 @@ export const Dashboard: React.FC = () => {
   const [expiringBatches, setExpiringBatches] = useState<ProductBatchResponse[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
+  const [stores, setStores] = useState<StoreResponse[]>([]);
+  const [clients, setClients] = useState<ClientResponse[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -46,7 +52,9 @@ export const Dashboard: React.FC = () => {
         dashboard,
         alerts,
         movements,
-        expiring
+        expiring,
+        stores,
+        clients
       ] = await Promise.all([
         dashboardAPI.getDashboardData(),
         productStoreAPI.getLowStockAlerts(),
@@ -54,7 +62,9 @@ export const Dashboard: React.FC = () => {
           new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           new Date().toISOString().split('T')[0]
         ),
-        productBatchAPI.getExpiringBatches(30)
+        productBatchAPI.getExpiringBatches(30),
+        storeAPI.getAllStores(),
+        clientAPI.getAllClients()
       ]);
 
       setDashboardData(dashboard);
@@ -286,6 +296,47 @@ export const Dashboard: React.FC = () => {
           <div className="mt-2">
             <Link href="/alerts" className="text-sm text-red-600 hover:text-red-800 font-medium">
               Ver alertas →
+            </Link>
+          </div>
+        </Card>
+        <Card className="border-l-4 border-l-purple-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Tiendas Activas</p>
+              <p className="text-2xl sm:text-3xl font-bold text-purple-600">
+                {stores?.filter(s => s.isActive).length || 0}
+              </p>
+            </div>
+            <div className="text-purple-500">
+              <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm3 5a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+          </div>
+          <div className="mt-2">
+            <Link href="/stores" className="text-sm text-purple-600 hover:text-purple-800 font-medium">
+              Gestionar tiendas →
+            </Link>
+          </div>
+        </Card>
+
+        <Card className="border-l-4 border-l-orange-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Clientes Registrados</p>
+              <p className="text-2xl sm:text-3xl font-bold text-orange-600">
+                {clients?.filter(c => c.isActive).length || 0}
+              </p>
+            </div>
+            <div className="text-orange-500">
+              <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+              </svg>
+            </div>
+          </div>
+          <div className="mt-2">
+            <Link href="/clients" className="text-sm text-orange-600 hover:text-orange-800 font-medium">
+              Ver clientes →
             </Link>
           </div>
         </Card>
