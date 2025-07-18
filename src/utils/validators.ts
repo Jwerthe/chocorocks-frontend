@@ -5,10 +5,24 @@ export const validators = {
     return emailRegex.test(email);
   },
 
+
   phone: (phone: string): boolean => {
-    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-    return phoneRegex.test(phone.replace(/\s/g, ''));
+    const cleanPhone = phone.replace(/[\s\-\(\)]/g, ''); // Remover espacios, guiones y paréntesis
+    
+    // Patrones para números ecuatorianos
+    const patterns = [
+      /^09\d{8}$/,           // Celular: 09XXXXXXXX (10 dígitos)
+      /^0[2-7]\d{7}$/,       // Fijo: 0X-XXXXXXX (9 dígitos)
+      /^\+5939\d{8}$/,       // Internacional celular: +5939XXXXXXXX
+      /^\+593[2-7]\d{7}$/,   // Internacional fijo: +593X-XXXXXXX
+      /^[2-7]\d{7}$/,        // Fijo sin código: XXXXXXXX (8 dígitos)
+      /^9\d{8}$/             // Celular sin código: 9XXXXXXXX (9 dígitos)
+    ];
+    
+    return patterns.some(pattern => pattern.test(cleanPhone));
   },
+
+
 
   cedula: (cedula: string): boolean => {
     if (cedula.length !== 10) return false;

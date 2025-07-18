@@ -50,6 +50,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   const [error, setError] = useState<string>('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const [displayValues, setDisplayValues] = useState({
+    productionCost: '',
+    wholesalePrice: '',
+    retailPrice: '',
+  });
+
   useEffect(() => {
     if (isOpen) {
       fetchCategories();
@@ -69,6 +75,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           barcode: editingProduct.barcode || '',
           isActive: editingProduct.isActive,
         });
+          setDisplayValues({
+            productionCost: editingProduct.productionCost > 0 ? editingProduct.productionCost.toString() : '',
+            wholesalePrice: editingProduct.wholesalePrice > 0 ? editingProduct.wholesalePrice.toString() : '',
+            retailPrice: editingProduct.retailPrice > 0 ? editingProduct.retailPrice.toString() : '',
+          });
       } else {
         resetForm();
         generateProductCode();
@@ -114,6 +125,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       barcode: '',
       isActive: true,
     });
+      setDisplayValues({
+        productionCost: '',
+        wholesalePrice: '',
+        retailPrice: '',
+      });
     setErrors({});
     setError('');
   };
@@ -178,18 +194,18 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       newErrors.minStockLevel = 'El stock mínimo debe ser mayor o igual a 0';
     }
 
-    // Business logic validations
-    if (formData.wholesalePrice > 0 && formData.retailPrice > 0) {
-      if (formData.wholesalePrice >= formData.retailPrice) {
-        newErrors.wholesalePrice = 'El precio mayorista debe ser menor al precio al detalle';
-      }
+  // Business logic validations
+  if (formData.wholesalePrice > 0 && formData.retailPrice > 0) {
+    if (formData.wholesalePrice >= formData.retailPrice) {
+      newErrors.wholesalePrice = 'El precio mayorista debe ser menor al precio al detalle';
     }
+  }
 
-    if (formData.productionCost > 0 && formData.wholesalePrice > 0) {
-      if (formData.productionCost >= formData.wholesalePrice) {
-        newErrors.productionCost = 'El costo de producción debe ser menor al precio mayorista';
-      }
+  if (formData.productionCost > 0 && formData.wholesalePrice > 0) {
+    if (formData.productionCost >= formData.wholesalePrice) {
+      newErrors.productionCost = 'El costo de producción debe ser menor al precio mayorista';
     }
+  }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -224,6 +240,29 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       setSubmitting(false);
     }
   };
+
+const handleNumericTextChange = (
+  field: 'productionCost' | 'wholesalePrice' | 'retailPrice',
+  rawValue: string
+): void => {
+  // Solo permitir números y un punto decimal opcional
+  const cleaned = rawValue.replace(/[^0-9.]/g, '');
+
+  // Prevenir múltiples puntos
+  const parts = cleaned.split('.');
+  const valid = parts.length > 2 ? parts.slice(0, 2).join('.') : cleaned;
+
+  setDisplayValues(prev => ({ ...prev, [field]: valid }));
+
+  // Convertir a número (float) solo si es válido
+  const parsed = parseFloat(valid);
+  setFormData(prev => ({ ...prev, [field]: isNaN(parsed) ? 0 : parsed }));
+
+  if (errors[field]) {
+    setErrors(prev => ({ ...prev, [field]: '' }));
+  }
+};
+
 
   const handleInputChange = (field: keyof ProductRequest, value: string | number | boolean): void => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -350,41 +389,39 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             disabled={submitting}
           />
 
-          <Input
-            label="Costo de Producción ($)"
-            type="number"
-            step="0.01"
-            value={formData.productionCost}
-            onChange={(e) => handleInputChange('productionCost', parseFloat(e.target.value) || 0)}
-            error={errors.productionCost}
-            placeholder="0.00"
-            min="0"
-            disabled={submitting}
-          />
+<Input
+  label="Costo de Producción ($)"
+  type="text"
+  inputMode="decimal"
+  value={displayValues.productionCost}
+  onChange={(e) => handleNumericTextChange('productionCost', e.target.value)}
+  error={errors.productionCost}
+  placeholder="0.00"
+  disabled={submitting}
+/>
 
-          <Input
-            label="Precio Mayorista ($)"
-            type="number"
-            step="0.01"
-            value={formData.wholesalePrice}
-            onChange={(e) => handleInputChange('wholesalePrice', parseFloat(e.target.value) || 0)}
-            error={errors.wholesalePrice}
-            placeholder="0.00"
-            min="0"
-            disabled={submitting}
-          />
+<Input
+  label="Precio Mayorista ($)"
+  type="text"
+  inputMode="decimal"
+  value={displayValues.wholesalePrice}
+  onChange={(e) => handleNumericTextChange('wholesalePrice', e.target.value)}
+  error={errors.wholesalePrice}
+  placeholder="0.00"
+  disabled={submitting}
+/>
 
-          <Input
-            label="Precio al Detalle ($)"
-            type="number"
-            step="0.01"
-            value={formData.retailPrice}
-            onChange={(e) => handleInputChange('retailPrice', parseFloat(e.target.value) || 0)}
-            error={errors.retailPrice}
-            placeholder="0.00"
-            min="0"
-            disabled={submitting}
-          />
+<Input
+  label="Precio al Detalle ($)"
+  type="text"
+  inputMode="decimal"
+  value={displayValues.retailPrice}
+  onChange={(e) => handleNumericTextChange('retailPrice', e.target.value)}
+  error={errors.retailPrice}
+  placeholder="0.00"
+  disabled={submitting}
+/>
+
 
           <Input
             label="URL de Imagen"
