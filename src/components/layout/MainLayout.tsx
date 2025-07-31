@@ -1,9 +1,10 @@
-// src/components/layout/MainLayout.tsx
 'use client';
 
 import React, { useState } from 'react';
-import { Sidebar } from './Sidebar';
+import { usePathname } from 'next/navigation';
 import { Header } from './Header';
+import { Sidebar } from './Sidebar';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -11,38 +12,39 @@ interface MainLayoutProps {
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const pathname = usePathname();
+  
+  // Páginas que no necesitan autenticación
+  const publicRoutes = ['/login'];
+  const isPublicRoute = publicRoutes.includes(pathname);
 
-  const toggleSidebar = (): void => {
+  const handleSidebarToggle = (): void => {
     setSidebarOpen(!sidebarOpen);
   };
 
-  const closeSidebar = (): void => {
+  const handleSidebarClose = (): void => {
     setSidebarOpen(false);
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
-      
-      {/* Main content area */}
-      <div className="transition-all duration-300 ease-in-out lg:ml-64">
-        {/* Header */}
-        <Header onMenuClick={toggleSidebar} />
-        
-        {/* Main content */}
-        <main className="p-4 sm:p-6 animate-fade-in min-h-[calc(100vh-80px)]">
-          {children}
-        </main>
-      </div>
+  if (isPublicRoute) {
+    return <>{children}</>;
+  }
 
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={closeSidebar}
-        />
-      )}
-    </div>
+  return (
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50">
+        <Header onMenuClick={handleSidebarToggle} />
+        
+        <div className="flex">
+          <Sidebar isOpen={sidebarOpen} onClose={handleSidebarClose} />
+          
+          <main className="flex-1 lg:ml-64">
+            <div className="p-4 sm:p-6">
+              {children}
+            </div>
+          </main>
+        </div>
+      </div>
+    </ProtectedRoute>
   );
 };

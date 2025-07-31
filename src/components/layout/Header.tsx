@@ -1,16 +1,32 @@
-// src/components/layout/Header.tsx
+// src/components/layout/Header.tsx (Actualizado)
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
+  const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false);
+  const { user, logout } = useAuth();
+
   const handleMenuClick = (): void => {
     onMenuClick();
+  };
+
+  const handleLogout = async (): Promise<void> => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+    }
+  };
+
+  const toggleUserMenu = (): void => {
+    setUserMenuOpen(!userMenuOpen);
   };
 
   return (
@@ -59,14 +75,49 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           </button>
 
           {/* User menu */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            <div className="w-8 h-8 bg-[#7ca1eb] border-2 border-black flex items-center justify-center font-bold text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-              A
-            </div>
-            <div className="hidden md:block text-sm">
-              <p className="font-medium text-gray-900">Administrador</p>
-              <p className="text-gray-500 text-xs">admin@chocorocks.com</p>
-            </div>
+          <div className="relative">
+            <button
+              onClick={toggleUserMenu}
+              className="flex items-center space-x-2 sm:space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              type="button"
+              aria-label="Menú de usuario"
+            >
+              <div className="w-8 h-8 bg-[#7ca1eb] border-2 border-black flex items-center justify-center font-bold text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                {user?.name?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <div className="hidden md:block text-sm text-left">
+                <p className="font-medium text-gray-900">{user?.name || 'Usuario'}</p>
+                <p className="text-gray-500 text-xs">{user?.email}</p>
+              </div>
+              <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+
+            {/* Dropdown menu */}
+            {userMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-50">
+                <div className="py-2">
+                  <div className="px-4 py-2 border-b border-gray-200">
+                    <p className="text-sm font-medium text-gray-900">{user?.name}</p>
+                    <p className="text-xs text-gray-500">{user?.role}</p>
+                  </div>
+                  
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    type="button"
+                  >
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
+                      </svg>
+                      Cerrar Sesión
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

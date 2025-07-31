@@ -1,9 +1,10 @@
-// src/app/layout.tsx (Updated)
+// src/app/layout.tsx (Actualizado)
 import type { Metadata } from "next";
 import "./globals.css";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ErrorBoundary } from "@/components/layout/ErrorBoundary";
 import { NotificationProvider } from "@/components/providers/NotificationProvider";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "Chocorocks - Sistema de Inventario",
@@ -21,11 +22,13 @@ export default function RootLayout({
     <html lang="es">
       <body className="antialiased">
         <ErrorBoundary>
-          <NotificationProvider>
-            <MainLayout>
-              {children}
-            </MainLayout>
-          </NotificationProvider>
+          <AuthProvider>
+            <NotificationProvider>
+              <MainLayout>
+                {children}
+              </MainLayout>
+            </NotificationProvider>
+          </AuthProvider>
         </ErrorBoundary>
       </body>
     </html>

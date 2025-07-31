@@ -1,10 +1,28 @@
-// src/middleware.ts
+// src/middleware.ts (Actualizado)
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
+  // Rutas públicas que no requieren autenticación
+  const publicPaths = ['/login', '/api'];
+  const { pathname } = request.nextUrl;
+  
+  // Permitir rutas públicas
+  if (publicPaths.some(path => pathname.startsWith(path))) {
+    return NextResponse.next();
+  }
+
+  // Verificar token de autenticación
+  const token = request.cookies.get('auth-token');
+  
+  if (!token) {
+    // Redirigir a login si no hay token
+    const loginUrl = new URL('/login', request.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
   // Add CORS headers for API routes
-  if (request.nextUrl.pathname.startsWith('/api/')) {
+  if (pathname.startsWith('/api/')) {
     const response = NextResponse.next();
     
     response.headers.set('Access-Control-Allow-Origin', '*');
@@ -31,7 +49,12 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/',
+    '/products/:path*',
+    '/inventory/:path*',
+    '/sales/:path*',
+    '/stores/:path*',
+    '/clients/:path*',
     '/api/:path*',
-    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };
