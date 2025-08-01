@@ -45,8 +45,10 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
     setLoading(true);
     setError('');
     try {
-      const details = await saleDetailAPI.getSaleDetailsBySale(sale.id);
-      setSaleDetails(details);
+      // Obtener todos los sale details y filtrar por sale ID
+      const allDetails = await saleDetailAPI.getAllSaleDetails();
+      const filteredDetails = allDetails.filter(detail => detail.sale.id === sale.id);
+      setSaleDetails(filteredDetails);
     } catch (err) {
       const errorMessage = err instanceof ApiError 
         ? err.message 
@@ -81,13 +83,13 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
       header: 'Producto',
       render: (value: string, row: SaleDetailResponse) => (
         <div>
-          <div className="font-medium">{value}</div>
-          <div className="text-sm text-gray-500">
+          <div className="font-medium text-gray-800">{value}</div>
+          <div className="text-sm text-gray-600">
             {row.product.flavor && `${row.product.flavor} - `}
             {row.product.size || 'Sin tamaño'}
           </div>
           {row.product.code && (
-            <div className="text-xs text-gray-400 font-mono">
+            <div className="text-xs text-gray-500 font-mono">
               Código: {row.product.code}
             </div>
           )}
@@ -98,14 +100,14 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
       key: 'quantity',
       header: 'Cantidad',
       render: (value: number) => (
-        <span className="font-bold text-center block">{value}</span>
+        <span className="font-bold text-center text-gray-700 block">{value}</span>
       ),
     },
     {
       key: 'unitPrice',
       header: 'Precio Unitario',
       render: (value: number) => (
-        <span className="font-medium">{formatCurrency(Number(value))}</span>
+        <span className="font-medium text-gray-700">{formatCurrency(Number(value))}</span>
       ),
     },
     {
@@ -121,13 +123,13 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
       key: 'batch',
       header: 'Lote',
       render: (value: any) => (
-        <span className="text-sm">
+        <span className="text-sm text-gray-700">
           {value ? (
             <Badge variant="secondary" size="sm">
               {value.batchCode}
             </Badge>
           ) : (
-            <span className="text-gray-400">Sin lote</span>
+            <span className="text-gray-500">Sin lote</span>
           )}
         </span>
       ),
@@ -158,33 +160,33 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
             <div className="space-y-3">
               <div>
                 <label className="text-sm font-medium text-gray-600">Número de Venta:</label>
-                <p className="font-bold text-lg">{sale.saleNumber}</p>
+                <p className="font-bold text-gray-700 text-lg">{sale.saleNumber}</p>
               </div>
               
-              <div>
+              {/* <div>
                 <label className="text-sm font-medium text-gray-600">Fecha:</label>
-                <p>{formatDate(sale.createdAt)}</p>
-              </div>
+                <p className='text-gray-600'>{formatDate(sale.createdAt)}</p>
+              </div> */}
               
               <div>
                 <label className="text-sm font-medium text-gray-600">Vendedor:</label>
-                <p className="font-medium">{sale.user.name}</p>
+                <p className="font-medium text-gray-600">{sale.user.name}</p>
               </div>
               
               <div>
                 <label className="text-sm font-medium text-gray-600">Cliente:</label>
-                <p>{sale.client?.nameLastname || 'Cliente General'}</p>
+                <p className='text-gray-700'>{sale.client?.nameLastname || 'Cliente General'}</p>
               </div>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="text-sm font-medium text-gray-600">Tienda:</label>
+                <label className="text-sm font-medium text-gray-600 mr-4">Tienda:</label>
                 <Badge variant="secondary">{sale.store.name}</Badge>
               </div>
               
               <div>
-                <label className="text-sm font-medium text-gray-600">Tipo de Venta:</label>
+                <label className="text-sm font-medium text-gray-600 mr-4">Tipo de Venta:</label>
                 <Badge 
                   variant={sale.saleType === SaleType.RETAIL ? 'primary' : 'secondary'}
                 >
@@ -193,7 +195,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
               </div>
               
               <div>
-                <label className="text-sm font-medium text-gray-600">Estado de Facturación:</label>
+                <label className="text-sm font-medium text-gray-600 mr-4">Estado de Facturación:</label>
                 <Badge variant={sale.isInvoiced ? 'success' : 'warning'}>
                   {sale.isInvoiced ? 'Facturada' : 'Sin Facturar'}
                 </Badge>
@@ -202,7 +204,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
               {sale.paymentMethod && (
                 <div>
                   <label className="text-sm font-medium text-gray-600">Método de Pago:</label>
-                  <p>{sale.paymentMethod}</p>
+                  <p className='text-gray-700'>{sale.paymentMethod}</p>
                 </div>
               )}
             </div>
@@ -211,7 +213,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
           {sale.notes && (
             <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded">
               <label className="text-sm font-medium text-gray-600">Notas:</label>
-              <p className="mt-1">{sale.notes}</p>
+              <p className="mt-1 text-gray-700">{sale.notes}</p>
             </div>
           )}
         </Card>
@@ -239,11 +241,11 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-600">Total de Productos:</p>
-                    <p className="font-bold text-lg">{saleDetails.length}</p>
+                    <p className="font-bold text-gray-700 text-lg">{saleDetails.length}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Cantidad Total:</p>
-                    <p className="font-bold text-lg">{totalQuantity}</p>
+                    <p className="font-bold text-gray-700 text-lg">{totalQuantity}</p>
                   </div>
                 </div>
               </div>
@@ -257,7 +259,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Subtotal:</span>
-                <span className="font-medium">{formatCurrency(Number(sale.subtotal))}</span>
+                <span className="font-medium text-gray-700">{formatCurrency(Number(sale.subtotal))}</span>
               </div>
               
               {Number(sale.discountAmount) > 0 && (
@@ -275,11 +277,11 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                 <span className="text-gray-600">
                   Impuestos ({Number(sale.taxPercentage)}%):
                 </span>
-                <span className="font-medium">{formatCurrency(Number(sale.taxAmount))}</span>
+                <span className="font-medium text-gray-700">{formatCurrency(Number(sale.taxAmount))}</span>
               </div>
               
               <div className="flex justify-between items-center border-t-2 border-black pt-3">
-                <span className="text-lg font-bold">TOTAL:</span>
+                <span className="text-lg font-bold text-gray-700">TOTAL:</span>
                 <span className="text-xl font-bold text-green-600">
                   {formatCurrency(Number(sale.totalAmount))}
                 </span>
@@ -290,13 +292,13 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
             <div className="bg-blue-50 border border-blue-200 p-4 rounded">
               <h5 className="font-medium text-blue-800 mb-2">Verificación:</h5>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
+                <div className="flex justify-between text-gray-600">
                   <span>Subtotal calculado:</span>
                   <span className={calculatedSubtotal === Number(sale.subtotal) ? 'text-green-600' : 'text-red-600'}>
                     {formatCurrency(calculatedSubtotal)}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between text-gray-600">
                   <span>Diferencia:</span>
                   <span className={Math.abs(calculatedSubtotal - Number(sale.subtotal)) < 0.01 ? 'text-green-600' : 'text-red-600'}>
                     {formatCurrency(Math.abs(calculatedSubtotal - Number(sale.subtotal)))}
@@ -311,9 +313,9 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
         <div className="flex justify-end space-x-3 pt-4 border-t-2 border-gray-200">
           <button
             onClick={() => window.print()}
-            className="px-4 py-2 bg-gray-100 border-2 border-black font-medium hover:bg-gray-200 transition-colors"
+            className="px-4 py-2 bg-gray-100 text-gray-700 border-2 border-black font-medium hover:bg-gray-200 transition-colors"
           >
-            🖨️ Imprimir
+            Imprimir
           </button>
           <button
             onClick={onClose}

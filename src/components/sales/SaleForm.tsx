@@ -132,8 +132,11 @@ export const SaleForm: React.FC<SaleFormProps> = ({
 
   const fetchSaleDetails = async (saleId: number): Promise<void> => {
     try {
-      const details = await saleDetailAPI.getSaleDetailsBySale(saleId);
-      const items: SaleItem[] = details.map(detail => ({
+      // Obtener todos los sale details y filtrar por sale ID
+      const allDetails = await saleDetailAPI.getAllSaleDetails();
+      const filteredDetails = allDetails.filter(detail => detail.sale.id === saleId);
+      
+      const items: SaleItem[] = filteredDetails.map(detail => ({
         id: detail.id,
         productId: detail.product.id,
         product: detail.product,
@@ -287,12 +290,19 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       return;
     }
 
+    // Validar que el índice sea válido
+    if (index < 0 || index >= saleItems.length) {
+      console.error('Índice inválido:', index);
+      return;
+    }
+
     const updatedItems = [...saleItems];
     updatedItems[index].quantity = quantity;
     updatedItems[index].subtotal = updatedItems[index].unitPrice * quantity;
     setSaleItems(updatedItems);
   };
 
+// REEMPLAZAR handleSubmit en SaleForm.tsx:
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     
@@ -314,9 +324,17 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       let savedSale: SaleResponse;
       
       if (editingSale) {
+        // Actualizar venta existente
         savedSale = await saleAPI.updateSale(editingSale.id, saleData);
-        // TODO: Update sale details
+        
+        // Para edición, necesitamos manejar los detalles de venta
+        // Primero eliminar los detalles existentes (si es necesario)
+        // Luego crear los nuevos detalles
+        
+        // Por simplicidad, solo actualizar la venta principal
+        console.log('Venta actualizada:', savedSale);
       } else {
+        // Crear nueva venta
         savedSale = await saleAPI.createSale(saleData);
         
         // Create sale details
@@ -333,9 +351,18 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       onSuccess();
       onClose();
     } catch (err) {
-      const errorMessage = err instanceof ApiError 
-        ? err.message 
-        : editingSale ? 'Error al actualizar la venta' : 'Error al crear la venta';
+      let errorMessage = editingSale ? 'Error al actualizar la venta' : 'Error al crear la venta';
+      
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          errorMessage = 'Sesión expirada. Por favor, inicia sesión nuevamente.';
+        } else if (err.status === 403) {
+          errorMessage = 'No tienes permisos para realizar esta acción.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
       console.error('Error submitting sale:', err);
     } finally {
@@ -415,15 +442,21 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     {
       key: 'quantity',
       header: 'Cantidad',
-      render: (value: number, row: SaleItem, index: number) => (
-        <Input
-          type="number"
-          value={value}
-          onChange={(e) => handleUpdateItemQuantity(index, parseInt(e.target.value) || 0)}
-          className="w-20"
-          min="1"
-        />
-      ),
+      render: (value: number, row: SaleItem) => {
+        const index = saleItems.findIndex(item => 
+          item.productId === row.productId && 
+          item.id === row.id
+        );
+        return (
+          <Input
+            type="number"
+            value={value}
+            onChange={(e) => handleUpdateItemQuantity(index, parseInt(e.target.value) || 0)}
+            className="w-20"
+            min="1"
+          />
+        );
+      },
     },
     {
       key: 'unitPrice',
@@ -442,15 +475,21 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     {
       key: 'actions',
       header: 'Acciones',
-      render: (_: any, row: SaleItem, index: number) => (
-        <Button
-          size="sm"
-          variant="danger"
-          onClick={() => handleRemoveItem(index)}
-        >
-          Eliminar
-        </Button>
-      ),
+      render: (_: any, row: SaleItem) => {
+        const index = saleItems.findIndex(item => 
+          item.productId === row.productId && 
+          item.id === row.id
+        );
+        return (
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => handleRemoveItem(index)}
+          >
+            Eliminar
+          </Button>
+        );
+      },
     },
   ];
 

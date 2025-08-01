@@ -24,6 +24,8 @@ import {
 import { saleAPI, storeAPI, clientAPI, userAPI, ApiError } from '@/services/api';
 import { useDebounce } from '@/hooks/useDebounce';
 
+import { useAuth } from '@/contexts/AuthContext';
+
 // Proper TypeScript interfaces
 interface TableColumn<T> {
   key: string;
@@ -97,6 +99,7 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
 
 export const SaleList: React.FC = () => {
   // State with proper typing
+  const { user } = useAuth();
   const [sales, setSales] = useState<SaleResponse[]>([]);
   const [stores, setStores] = useState<StoreResponse[]>([]);
   const [clients, setClients] = useState<ClientResponse[]>([]);
@@ -121,7 +124,7 @@ export const SaleList: React.FC = () => {
     isInvoiced: undefined,
   });
 
-  const debouncedSearch = useDebounce(filters.search, 500);
+  
 
   // Effect hooks with proper dependencies
   useEffect(() => {
@@ -131,13 +134,9 @@ export const SaleList: React.FC = () => {
     fetchUsers();
   }, []);
 
-  useEffect(() => {
-    if (debouncedSearch !== filters.search) {
-      setFilters(prev => ({ ...prev, search: debouncedSearch }));
-    }
-  }, [debouncedSearch, filters.search]);
 
   // API functions with proper error handling
+  // REEMPLAZAR fetchSales:
   const fetchSales = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError('');
@@ -145,9 +144,20 @@ export const SaleList: React.FC = () => {
       const data = await saleAPI.getAllSales();
       setSales(data);
     } catch (err) {
-      const errorMessage = err instanceof ApiError 
-        ? err.message 
-        : 'Error al cargar las ventas';
+      let errorMessage = 'Error al cargar las ventas';
+      
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          errorMessage = 'Sesión expirada. Por favor, inicia sesión nuevamente.';
+          // Opcional: redirigir al login
+          // window.location.href = '/login';
+        } else if (err.status === 403) {
+          errorMessage = 'No tienes permisos para ver las ventas.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
       console.error('Error fetching sales:', err);
     } finally {
@@ -187,6 +197,7 @@ export const SaleList: React.FC = () => {
     setDeleteConfirm({ show: true, sale });
   }, []);
 
+  // REEMPLAZAR handleDeleteConfirm:
   const handleDeleteConfirm = useCallback(async (): Promise<void> => {
     if (!deleteConfirm.sale) return;
 
@@ -194,10 +205,22 @@ export const SaleList: React.FC = () => {
       await saleAPI.deleteSale(deleteConfirm.sale.id);
       await fetchSales();
       setDeleteConfirm({ show: false, sale: null });
+      
+      // Mostrar notificación de éxito si tienes useNotification
+      // addNotification?.('Venta eliminada exitosamente', 'success');
     } catch (err) {
-      const errorMessage = err instanceof ApiError 
-        ? err.message 
-        : 'Error al eliminar la venta. Verifique que no tenga datos asociados.';
+      let errorMessage = 'Error al eliminar la venta';
+      
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          errorMessage = 'Sesión expirada. Por favor, inicia sesión nuevamente.';
+        } else if (err.status === 403) {
+          errorMessage = 'No tienes permisos para eliminar ventas.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
       setDeleteConfirm({ show: false, sale: null });
       console.error('Error deleting sale:', err);
@@ -242,8 +265,9 @@ export const SaleList: React.FC = () => {
   }, [fetchSales, fetchStores, fetchClients, fetchUsers]);
 
   // Input change handlers with proper typing
-  const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>): void => {
-    setFilters(prev => ({ ...prev, search: event.target.value }));
+// REEMPLAZAR handleSearchChange por:
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
+    setFilters(prev => ({ ...prev, search: e.target.value || '' }));
   }, []);
 
   const handleStoreChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>): void => {
