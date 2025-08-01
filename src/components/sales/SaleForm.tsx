@@ -404,8 +404,8 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       header: 'Producto',
       render: (value: string, row: SaleItem) => (
         <div>
-          <div className="font-medium text-sm">{value}</div>
-          <div className="text-xs text-gray-500">
+          <div className="font-medium text-gray-700 text-sm">{value}</div>
+          <div className="text-xs text-gray-600">
             {row.product?.flavor && `${row.product.flavor} - `}
             {row.product?.size || 'Sin tamaño'}
           </div>
@@ -428,7 +428,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     {
       key: 'unitPrice',
       header: 'Precio Unit.',
-      render: (value: number) => formatCurrency(value),
+      render: (value: number) => <span className='text-gray-700'>{formatCurrency(value)}</span>,
     },
     {
       key: 'subtotal',
@@ -550,7 +550,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
         {/* Sale Items */}
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-bold">Productos de la Venta</h3>
+            <h3 className="text-lg text-gray-800 font-bold">Productos de la Venta</h3>
             <Button
               type="button"
               variant="success"
@@ -637,7 +637,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
 
         {/* Totals Summary */}
         {saleItems.length > 0 && (
-          <div className="bg-gray-50 border-2 border-black p-4">
+          <div className="bg-gray-50 border-2 border-black p-4 text-gray-700">
             <h4 className="font-bold mb-4">Resumen de Totales</h4>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="flex justify-between">

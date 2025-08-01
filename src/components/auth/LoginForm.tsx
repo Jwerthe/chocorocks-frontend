@@ -1,12 +1,14 @@
-// src/components/auth/LoginForm.tsx (Corregido)
+// src/components/auth/LoginForm.tsx (Versión Limpia)
 'use client';
 
-import React, { useState, useCallback, FormEvent, ChangeEvent } from 'react';
+import React, { useState, useCallback, FormEvent, ChangeEvent, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginCredentials, FormErrors } from '@/types/auth';
+import Image from 'next/image';
 
 interface LoginFormState {
   credentials: LoginCredentials;
@@ -30,7 +32,15 @@ const initialFormState: LoginFormState = {
 
 export const LoginForm: React.FC = () => {
   const [formState, setFormState] = useState<LoginFormState>(initialFormState);
-  const { login, loading, error, clearError } = useAuth();
+  const { login, user, loading, error, clearError } = useAuth();
+  const router = useRouter();
+
+  // Efecto para manejar redirección cuando el usuario se autentica
+  useEffect(() => {
+    if (!loading && user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
 
   const validateField = useCallback((name: keyof LoginCredentials, value: string): string => {
     switch (name) {
@@ -109,9 +119,6 @@ export const LoginForm: React.FC = () => {
   const handleSubmit = useCallback(async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     
-    console.log('🔄 Iniciando proceso de login...');
-    console.log('📧 Email:', formState.credentials.email);
-    
     setFormState(prev => ({
       ...prev,
       touched: {
@@ -121,16 +128,13 @@ export const LoginForm: React.FC = () => {
     }));
 
     if (!validateForm()) {
-      console.log('❌ Formulario inválido');
       return;
     }
 
     try {
-      console.log('📤 Enviando credenciales...');
       await login(formState.credentials);
-      console.log('✅ Login exitoso');
     } catch (error) {
-      console.error('❌ Error en login:', error);
+      // Error manejado por el contexto
     }
   }, [formState.credentials, validateForm, login]);
 
@@ -146,14 +150,18 @@ export const LoginForm: React.FC = () => {
     formState.credentials.password.trim() !== '';
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gray-300 flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         {/* Logo y título */}
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-[#7ca1eb] border-4 border-black mx-auto mb-4 flex items-center justify-center shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-            <span className="text-2xl font-bold text-white">C</span>
+        <div className="text-center mb-4">
+          <div className="mb-2 flex justify-center">
+            <Image
+              src="/images/logos/chocologo.png"
+              alt="Logo de Chocorocks"
+              width={300}
+              height={120}
+            />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Chocorocks</h1>
           <p className="text-gray-600">Sistema de Inventario</p>
         </div>
 
@@ -163,11 +171,13 @@ export const LoginForm: React.FC = () => {
             Iniciar Sesión
           </h2>
 
-          {error && (
-            <Alert variant="error" className="mb-6">
-              {error}
-            </Alert>
-          )}
+          <div className='mb-4'>
+            {error && (
+              <Alert variant="error">
+                {error}
+              </Alert>
+            )}
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-6" noValidate>
             <Input
@@ -250,11 +260,6 @@ export const LoginForm: React.FC = () => {
               </button>
             </p>
           </div>
-        </div>
-
-        <div className="mt-8 text-center text-sm text-gray-500">
-          <p>Sistema de Inventario Chocorocks</p>
-          <p>Tesis PUCE TEC 2025</p>
         </div>
       </div>
     </div>

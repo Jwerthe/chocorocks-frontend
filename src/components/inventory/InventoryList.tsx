@@ -1,14 +1,15 @@
 // src/components/inventory/InventoryList.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { BackendErrorHandler } from '../common/BackendErrorHandler';
 import { ProductBatchForm } from './ProductBatchForm';
 import { InventoryMovementForm } from './InventoryMovementForm';
 import { 
@@ -16,103 +17,128 @@ import {
   StoreResponse, 
   ProductResponse,
   MovementType,
-  InventoryFilters 
+  BatchFilters,
 } from '@/types';
-import { productBatchAPI, storeAPI, productAPI } from '@/services/api';
+import { productBatchAPI, storeAPI, productAPI, ApiError } from '@/services/api';
+import { useNotification } from '@/hooks/useNotification';
 
 export const InventoryList: React.FC = () => {
   const [batches, setBatches] = useState<ProductBatchResponse[]>([]);
   const [stores, setStores] = useState<StoreResponse[]>([]);
   const [products, setProducts] = useState<ProductResponse[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   
-  const [showBatchForm, setShowBatchForm] = useState(false);
-  const [showMovementForm, setShowMovementForm] = useState(false);
+  const [showBatchForm, setShowBatchForm] = useState<boolean>(false);
+  const [showMovementForm, setShowMovementForm] = useState<boolean>(false);
   const [movementType, setMovementType] = useState<MovementType>(MovementType.IN);
   const [editingBatch, setEditingBatch] = useState<ProductBatchResponse | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; batch: ProductBatchResponse | null }>({
+    show: false,
+    batch: null
+  });
   
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<BatchFilters>({
     storeId: '',
     productId: '',
     showExpiring: false,
     showLowStock: false,
   });
 
-  useEffect(() => {
-    fetchBatches();
-    fetchStores();
-    fetchProducts();
-  }, []);
+  const { success, error: notifyError } = useNotification();
 
-  const fetchBatches = async () => {
+  const fetchBatches = useCallback(async (): Promise<void> => {
     setLoading(true);
+    setError('');
     try {
       const data = await productBatchAPI.getAllBatches();
       setBatches(data);
-      setError('');
     } catch (err) {
-      setError('Error al cargar los lotes de inventario');
+      const errorMessage = err instanceof ApiError 
+        ? err.message 
+        : 'Error al cargar los lotes de inventario';
+      setError(errorMessage);
+      console.error('Error fetching batches:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchStores = async () => {
+  const fetchStores = useCallback(async (): Promise<void> => {
     try {
       const data = await storeAPI.getAllStores();
       setStores(data.filter(s => s.isActive));
     } catch (err) {
       console.error('Error al cargar tiendas:', err);
     }
-  };
+  }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async (): Promise<void> => {
     try {
       const data = await productAPI.getAllProducts();
       setProducts(data.filter(p => p.isActive));
     } catch (err) {
       console.error('Error al cargar productos:', err);
     }
+  }, []);
+
+  useEffect(() => {
+    fetchBatches();
+    fetchStores();
+    fetchProducts();
+  }, [fetchBatches, fetchStores, fetchProducts]);
+
+  const handleDeleteBatch = (batch: ProductBatchResponse): void => {
+    setDeleteConfirm({ show: true, batch });
   };
 
-  const handleDeleteBatch = async (id: number) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este lote?')) {
-      return;
-    }
+  const handleDeleteConfirm = async (): Promise<void> => {
+    if (!deleteConfirm.batch) return;
 
     try {
-      await productBatchAPI.deleteBatch(id);
-      fetchBatches();
+      setLoading(true);
+      await productBatchAPI.deleteBatch(deleteConfirm.batch.id);
+      await fetchBatches();
+      success('Lote eliminado correctamente');
+      setDeleteConfirm({ show: false, batch: null });
     } catch (err) {
-      setError('Error al eliminar el lote');
+      const errorMessage = err instanceof ApiError 
+        ? err.message 
+        : 'Error al eliminar el lote. Verifique que no tenga movimientos asociados.';
+      setError(errorMessage);
+      setDeleteConfirm({ show: false, batch: null });
+      console.error('Error deleting batch:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleEditBatch = (batch: ProductBatchResponse) => {
+  const handleEditBatch = (batch: ProductBatchResponse): void => {
     setEditingBatch(batch);
     setShowBatchForm(true);
   };
 
-  const handleBatchFormClose = () => {
+  const handleBatchFormClose = (): void => {
     setShowBatchForm(false);
     setEditingBatch(null);
   };
 
-  const handleBatchFormSuccess = () => {
+  const handleBatchFormSuccess = (): void => {
     fetchBatches();
+    success(editingBatch ? 'Lote actualizado correctamente' : 'Lote creado correctamente');
   };
 
-  const handleMovementFormSuccess = () => {
+  const handleMovementFormSuccess = (): void => {
     fetchBatches(); // Refresh to see updated quantities
+    success('Movimiento registrado correctamente');
   };
 
-  const openMovementForm = (type: MovementType) => {
+  const openMovementForm = (type: MovementType): void => {
     setMovementType(type);
     setShowMovementForm(true);
   };
 
-  const clearFilters = () => {
+  const clearFilters = (): void => {
     setFilters({
       storeId: '',
       productId: '',
@@ -121,8 +147,13 @@ export const InventoryList: React.FC = () => {
     });
   };
 
+  const handleFilterChange = (field: keyof BatchFilters, value: string | boolean): void => {
+    setFilters(prev => ({ ...prev, [field]: value }));
+  };
+
   const filteredBatches = batches.filter(batch => {
-    const matchesStore = !filters.storeId || batch.store?.id.toString() === filters.storeId;
+    const matchesStore = !filters.storeId || 
+      (filters.storeId === 'null' ? !batch.store : batch.store?.id.toString() === filters.storeId);
     const matchesProduct = !filters.productId || batch.product.id.toString() === filters.productId;
     
     const isExpiringSoon = filters.showExpiring && 
@@ -142,29 +173,29 @@ export const InventoryList: React.FC = () => {
     return matchesStore && matchesProduct;
   });
 
-  const getExpirationStatus = (expirationDate: string) => {
+  const getExpirationStatus = (expirationDate: string): { status: string; variant: 'success' | 'warning' | 'danger' } => {
     const now = new Date();
     const expDate = new Date(expirationDate);
     const daysUntilExpiration = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
     if (daysUntilExpiration < 0) {
-      return { status: 'Vencido', variant: 'danger' as const };
+      return { status: 'Vencido', variant: 'danger' };
     } else if (daysUntilExpiration <= 7) {
-      return { status: `Vence en ${daysUntilExpiration} días`, variant: 'danger' as const };
+      return { status: `Vence en ${daysUntilExpiration} días`, variant: 'danger' };
     } else if (daysUntilExpiration <= 30) {
-      return { status: `Vence en ${daysUntilExpiration} días`, variant: 'warning' as const };
+      return { status: `Vence en ${daysUntilExpiration} días`, variant: 'warning' };
     } else {
-      return { status: `Vence en ${daysUntilExpiration} días`, variant: 'success' as const };
+      return { status: `Vence en ${daysUntilExpiration} días`, variant: 'success' };
     }
   };
 
-  const getStockStatus = (batch: ProductBatchResponse) => {
+  const getStockStatus = (batch: ProductBatchResponse): { status: string; variant: 'success' | 'warning' | 'danger' } => {
     if (batch.currentQuantity === 0) {
-      return { status: 'Sin stock', variant: 'danger' as const };
+      return { status: 'Sin stock', variant: 'danger' };
     } else if (batch.currentQuantity <= batch.product.minStockLevel) {
-      return { status: 'Stock bajo', variant: 'warning' as const };
+      return { status: 'Stock bajo', variant: 'warning' };
     } else {
-      return { status: 'Stock normal', variant: 'success' as const };
+      return { status: 'Stock normal', variant: 'success' };
     }
   };
 
@@ -186,15 +217,15 @@ export const InventoryList: React.FC = () => {
     {
       key: 'batchCode',
       header: 'Código de Lote',
-      render: (value: string) => <span className="font-mono text-sm font-bold">{value}</span>,
+      render: (value: string) => <span className="font-mono text-sm font-bold text-gray-700">{value}</span>,
     },
     {
       key: 'product.nameProduct',
       header: 'Producto',
       render: (value: string, row: ProductBatchResponse) => (
         <div>
-          <div className="font-medium">{value}</div>
-          <div className="text-sm text-gray-500">
+          <div className="font-medium text-gray-800">{value}</div>
+          <div className="text-sm text-gray-800">
             {row.product.flavor && `${row.product.flavor} - `}
             {row.product.size || 'Sin tamaño'}
           </div>
@@ -204,7 +235,7 @@ export const InventoryList: React.FC = () => {
     {
       key: 'store',
       header: 'Ubicación',
-      render: (value: any) => (
+      render: (value: StoreResponse | null | undefined) => (
         <Badge variant="secondary">
           {value ? value.name : 'Bodega Central'}
         </Badge>
@@ -213,7 +244,7 @@ export const InventoryList: React.FC = () => {
     {
       key: 'productionDate',
       header: 'Fecha de Producción',
-      render: (value: string) => new Date(value).toLocaleDateString(),
+      render: (value: string) => <span className='text-gray-700'>{new Date(value).toLocaleDateString()}</span>,
     },
     {
       key: 'expirationDate',
@@ -222,7 +253,7 @@ export const InventoryList: React.FC = () => {
         const { status, variant } = getExpirationStatus(value);
         return (
           <div>
-            <div>{new Date(value).toLocaleDateString()}</div>
+            <div className='text-gray-700'>{new Date(value).toLocaleDateString()}</div>
             <Badge variant={variant} size="sm">{status}</Badge>
           </div>
         );
@@ -231,8 +262,8 @@ export const InventoryList: React.FC = () => {
     {
       key: 'quantities',
       header: 'Cantidades',
-      render: (_: any, row: ProductBatchResponse) => (
-        <div className="text-sm">
+      render: (_: unknown, row: ProductBatchResponse) => (
+        <div className="text-sm text-gray-700">
           <div><strong>Actual:</strong> {row.currentQuantity}</div>
           <div><strong>Inicial:</strong> {row.initialQuantity}</div>
           <div><strong>Vendido:</strong> {row.initialQuantity - row.currentQuantity}</div>
@@ -242,7 +273,7 @@ export const InventoryList: React.FC = () => {
     {
       key: 'stockStatus',
       header: 'Estado Stock',
-      render: (_: any, row: ProductBatchResponse) => {
+      render: (_: unknown, row: ProductBatchResponse) => {
         const { status, variant } = getStockStatus(row);
         return <Badge variant={variant}>{status}</Badge>;
       },
@@ -250,7 +281,7 @@ export const InventoryList: React.FC = () => {
     {
       key: 'batchCost',
       header: 'Costo Lote',
-      render: (value: number) => `$${value.toFixed(2)}`,
+      render: (value: number) => <span className='text-gray-700'>${value.toFixed(2)}</span>,
     },
     {
       key: 'isActive',
@@ -264,7 +295,7 @@ export const InventoryList: React.FC = () => {
     {
       key: 'actions',
       header: 'Acciones',
-      render: (_: any, row: ProductBatchResponse) => (
+      render: (_: unknown, row: ProductBatchResponse) => (
         <div className="flex space-x-2">
           <Button
             size="sm"
@@ -276,7 +307,7 @@ export const InventoryList: React.FC = () => {
           <Button
             size="sm"
             variant="danger"
-            onClick={() => handleDeleteBatch(row.id)}
+            onClick={() => handleDeleteBatch(row)}
           >
             Eliminar
           </Button>
@@ -317,7 +348,14 @@ export const InventoryList: React.FC = () => {
         </div>
       </div>
 
-      {error && <Alert variant="error">{error}</Alert>}
+      {error && (
+        <BackendErrorHandler 
+          error={error}
+          onRetry={fetchBatches}
+          title="Error al cargar Lotes"
+          description="No se pudieron cargar los lotes de inventario. Verifica la conexión con el backend."
+        />
+      )}
 
       <Card title="Filtros de Inventario">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -325,14 +363,18 @@ export const InventoryList: React.FC = () => {
             label="Tienda/Ubicación"
             options={storeOptions}
             value={filters.storeId}
-            onChange={(e) => setFilters(prev => ({ ...prev, storeId: e.target.value }))}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
+              handleFilterChange('storeId', e.target.value)
+            }
           />
           
           <Select
             label="Producto"
             options={productOptions}
             value={filters.productId}
-            onChange={(e) => setFilters(prev => ({ ...prev, productId: e.target.value }))}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
+              handleFilterChange('productId', e.target.value)
+            }
           />
 
           <div className="space-y-2">
@@ -342,19 +384,23 @@ export const InventoryList: React.FC = () => {
                 <input
                   type="checkbox"
                   checked={filters.showExpiring}
-                  onChange={(e) => setFilters(prev => ({ ...prev, showExpiring: e.target.checked }))}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                    handleFilterChange('showExpiring', e.target.checked)
+                  }
                   className="w-4 h-4"
                 />
-                <span className="text-sm">Próximos a vencer (30 días)</span>
+                <span className="text-sm text-gray-600">Próximos a vencer (30 días)</span>
               </label>
               <label className="flex items-center space-x-2">
                 <input
                   type="checkbox"
                   checked={filters.showLowStock}
-                  onChange={(e) => setFilters(prev => ({ ...prev, showLowStock: e.target.checked }))}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                    handleFilterChange('showLowStock', e.target.checked)
+                  }
                   className="w-4 h-4"
                 />
-                <span className="text-sm">Stock bajo</span>
+                <span className="text-sm text-gray-600">Stock bajo</span>
               </label>
             </div>
           </div>
@@ -369,7 +415,7 @@ export const InventoryList: React.FC = () => {
 
       <Card>
         <div className="mb-4 flex justify-between items-center">
-          <h2 className="text-lg font-bold">
+          <h2 className="text-lg text-gray-700 font-bold">
             Lotes de Inventario ({filteredBatches.length})
           </h2>
           <div className="text-sm text-gray-600">
@@ -402,6 +448,17 @@ export const InventoryList: React.FC = () => {
         onClose={() => setShowMovementForm(false)}
         onSuccess={handleMovementFormSuccess}
         movementType={movementType}
+      />
+
+      <ConfirmDialog
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, batch: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Eliminar Lote"
+        message={`¿Estás seguro de que deseas eliminar el lote "${deleteConfirm.batch?.batchCode}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
       />
     </div>
   );

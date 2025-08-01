@@ -324,25 +324,6 @@ export const ClientForm: React.FC<ClientFormProps> = ({
           </div>
         </div>
 
-        {/* Preview section */}
-        {formData.nameLastname && formData.identificationNumber && (
-          <div className="bg-gray-50 border-2 border-gray-200 p-4 rounded">
-            <h4 className="font-medium text-gray-800 mb-2">Vista Previa:</h4>
-            <div className="text-sm space-y-1">
-              <div><strong>Nombre:</strong> {formData.nameLastname}</div>
-              <div>
-                <strong>Identificación:</strong> {formData.identificationNumber} 
-                ({identificationTypeOptions.find(opt => opt.value === formData.typeIdentification)?.label})
-              </div>
-              {formData.phoneNumber && <div><strong>Teléfono:</strong> {formData.phoneNumber}</div>}
-              {formData.email && <div><strong>Email:</strong> {formData.email}</div>}
-              {formData.address && <div><strong>Dirección:</strong> {formData.address}</div>}
-              <div><strong>Facturación:</strong> {formData.requiresInvoice ? 'Sí requiere' : 'No requiere'}</div>
-              <div><strong>Estado:</strong> {formData.isActive ? 'Activo' : 'Inactivo'}</div>
-            </div>
-          </div>
-        )}
-
         <div className="flex justify-end space-x-3 pt-4 border-t-2 border-gray-200">
           <Button
             type="button"

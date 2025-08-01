@@ -195,14 +195,14 @@ export const ClientList: React.FC = () => {
     {
       key: 'nameLastname',
       header: 'Nombre',
-      render: (value: string) => <span className="font-medium">{value}</span>,
+      render: (value: string) => <span className="font-medium text-gray-700">{value}</span>,
     },
     {
       key: 'identification',
       header: 'Identificación',
       render: (_: any, row: ClientResponse) => (
         <div>
-          <div className="font-mono text-sm">{row.identificationNumber}</div>
+          <div className="font-mono text-sm text-gray-600">{row.identificationNumber}</div>
           <Badge variant={getIdentificationTypeVariant(row.typeIdentification)} size="sm">
             {getIdentificationTypeLabel(row.typeIdentification)}
           </Badge>
@@ -213,7 +213,7 @@ export const ClientList: React.FC = () => {
       key: 'phoneNumber',
       header: 'Teléfono',
       render: (value: string | undefined) => (
-        <span className="text-sm font-mono">
+        <span className="text-sm text-gray-700 font-mono">
           {value || '-'}
         </span>
       ),
@@ -222,7 +222,7 @@ export const ClientList: React.FC = () => {
       key: 'email',
       header: 'Email',
       render: (value: string | undefined) => (
-        <span className="text-sm">
+        <span className="text-sm text-gray-700 truncate block max-w-[180px]">
           {value || '-'}
         </span>
       ),
@@ -231,7 +231,7 @@ export const ClientList: React.FC = () => {
       key: 'address',
       header: 'Dirección',
       render: (value: string | undefined) => (
-        <span className="text-sm text-gray-600 max-w-xs truncate block" title={value}>
+        <span className="text-sm text-gray-600 max-w-xs truncate max-w-[200px]" title={value}>
           {value || '-'}
         </span>
       ),
@@ -254,19 +254,19 @@ export const ClientList: React.FC = () => {
         </Badge>
       ),
     },
-    {
-      key: 'createdAt',
-      header: 'Registrado',
-      render: (value: string) => (
-        <span className="text-sm text-gray-500">
-          {new Date(value).toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          })}
-        </span>
-      ),
-    },
+    // {
+    //   key: 'createdAt',
+    //   header: 'Registrado',
+    //   render: (value: string) => (
+    //     <span className="text-sm text-gray-500">
+    //       {new Date(value).toLocaleDateString('es-ES', {
+    //         year: 'numeric',
+    //         month: 'short',
+    //         day: 'numeric'
+    //       })}
+    //     </span>
+    //   ),
+    // },
     {
       key: 'actions',
       header: 'Acciones',
@@ -447,7 +447,7 @@ export const ClientList: React.FC = () => {
 
       <Card>
         <div className="mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0">
-          <h2 className="text-lg font-bold">
+          <h2 className="text-lg text-gray-800 font-bold">
             Clientes ({filteredClients.length})
           </h2>
         </div>

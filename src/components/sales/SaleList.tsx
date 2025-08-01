@@ -24,10 +24,11 @@ import {
 import { saleAPI, storeAPI, clientAPI, userAPI, ApiError } from '@/services/api';
 import { useDebounce } from '@/hooks/useDebounce';
 
+// Proper TypeScript interfaces
 interface TableColumn<T> {
   key: string;
   header: string;
-  render?: (value: any, row: T) => React.ReactNode;
+  render?: (value: unknown, row: T) => React.ReactNode;
   className?: string;
 }
 
@@ -45,7 +46,57 @@ interface SaleFilters {
   isInvoiced: boolean | undefined;
 }
 
+interface DeleteConfirmState {
+  show: boolean;
+  sale: SaleResponse | null;
+}
+
+interface SummaryStats {
+  totalSales: number;
+  totalAmount: number;
+  averageAmount: number;
+}
+
+// Helper functions with proper typing
+const isValidDate = (dateString: string | null | undefined): boolean => {
+  if (!dateString) return false;
+  const date = new Date(dateString);
+  return !isNaN(date.getTime());
+};
+
+const safeFormatDate = (dateString: string | null | undefined): string => {
+  if (!isValidDate(dateString)) return 'Fecha inválida';
+  
+  try {
+    return new Date(dateString!).toISOString().split('T')[0];
+  } catch {
+    return '';
+  }
+};
+
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('es-EC', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(amount);
+};
+
+const formatDisplayDate = (dateString: string | null | undefined): string => {
+  if (!isValidDate(dateString)) return 'Fecha inválida';
+  
+  try {
+    return new Date(dateString!).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return 'Fecha inválida';
+  }
+};
+
 export const SaleList: React.FC = () => {
+  // State with proper typing
   const [sales, setSales] = useState<SaleResponse[]>([]);
   const [stores, setStores] = useState<StoreResponse[]>([]);
   const [clients, setClients] = useState<ClientResponse[]>([]);
@@ -56,7 +107,7 @@ export const SaleList: React.FC = () => {
   const [showDetailModal, setShowDetailModal] = useState<boolean>(false);
   const [editingSale, setEditingSale] = useState<SaleResponse | null>(null);
   const [selectedSale, setSelectedSale] = useState<SaleResponse | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; sale: SaleResponse | null }>({
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>({
     show: false,
     sale: null
   });
@@ -72,6 +123,7 @@ export const SaleList: React.FC = () => {
 
   const debouncedSearch = useDebounce(filters.search, 500);
 
+  // Effect hooks with proper dependencies
   useEffect(() => {
     fetchSales();
     fetchStores();
@@ -83,9 +135,10 @@ export const SaleList: React.FC = () => {
     if (debouncedSearch !== filters.search) {
       setFilters(prev => ({ ...prev, search: debouncedSearch }));
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, filters.search]);
 
-  const fetchSales = async (): Promise<void> => {
+  // API functions with proper error handling
+  const fetchSales = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError('');
     try {
@@ -100,40 +153,41 @@ export const SaleList: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchStores = async (): Promise<void> => {
+  const fetchStores = useCallback(async (): Promise<void> => {
     try {
       const data = await storeAPI.getAllStores();
-      setStores(data.filter(s => s.isActive));
+      setStores(data.filter((s: StoreResponse) => s.isActive));
     } catch (err) {
       console.error('Error al cargar tiendas:', err);
     }
-  };
+  }, []);
 
-  const fetchClients = async (): Promise<void> => {
+  const fetchClients = useCallback(async (): Promise<void> => {
     try {
       const data = await clientAPI.getAllClients();
-      setClients(data.filter(c => c.isActive));
+      setClients(data.filter((c: ClientResponse) => c.isActive));
     } catch (err) {
       console.error('Error al cargar clientes:', err);
     }
-  };
+  }, []);
 
-  const fetchUsers = async (): Promise<void> => {
+  const fetchUsers = useCallback(async (): Promise<void> => {
     try {
       const data = await userAPI.getAllUsers();
-      setUsers(data.filter(u => u.isActive));
+      setUsers(data.filter((u: UserResponse) => u.isActive));
     } catch (err) {
       console.error('Error al cargar usuarios:', err);
     }
-  };
+  }, []);
 
-  const handleDeleteClick = (sale: SaleResponse): void => {
+  // Event handlers with proper typing
+  const handleDeleteClick = useCallback((sale: SaleResponse): void => {
     setDeleteConfirm({ show: true, sale });
-  };
+  }, []);
 
-  const handleDeleteConfirm = async (): Promise<void> => {
+  const handleDeleteConfirm = useCallback(async (): Promise<void> => {
     if (!deleteConfirm.sale) return;
 
     try {
@@ -148,28 +202,28 @@ export const SaleList: React.FC = () => {
       setDeleteConfirm({ show: false, sale: null });
       console.error('Error deleting sale:', err);
     }
-  };
+  }, [deleteConfirm.sale, fetchSales]);
 
-  const handleEditSale = (sale: SaleResponse): void => {
+  const handleEditSale = useCallback((sale: SaleResponse): void => {
     setEditingSale(sale);
     setShowSaleForm(true);
-  };
+  }, []);
 
-  const handleViewDetails = (sale: SaleResponse): void => {
+  const handleViewDetails = useCallback((sale: SaleResponse): void => {
     setSelectedSale(sale);
     setShowDetailModal(true);
-  };
+  }, []);
 
-  const handleSaleFormClose = (): void => {
+  const handleSaleFormClose = useCallback((): void => {
     setShowSaleForm(false);
     setEditingSale(null);
-  };
+  }, []);
 
-  const handleSaleFormSuccess = (): void => {
+  const handleSaleFormSuccess = useCallback((): void => {
     fetchSales();
-  };
+  }, [fetchSales]);
 
-  const clearFilters = (): void => {
+  const clearFilters = useCallback((): void => {
     setFilters({
       search: '',
       storeId: undefined,
@@ -178,17 +232,51 @@ export const SaleList: React.FC = () => {
       endDate: '',
       isInvoiced: undefined,
     });
-  };
+  }, []);
 
-  const handleRefresh = (): void => {
+  const handleRefresh = useCallback((): void => {
     fetchSales();
     fetchStores();
     fetchClients();
     fetchUsers();
-  };
+  }, [fetchSales, fetchStores, fetchClients, fetchUsers]);
 
-  // Client-side filtering
-  const filteredSales = sales.filter(sale => {
+  // Input change handlers with proper typing
+  const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>): void => {
+    setFilters(prev => ({ ...prev, search: event.target.value }));
+  }, []);
+
+  const handleStoreChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>): void => {
+    setFilters(prev => ({ 
+      ...prev, 
+      storeId: event.target.value ? parseInt(event.target.value, 10) : undefined 
+    }));
+  }, []);
+
+  const handleSaleTypeChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>): void => {
+    setFilters(prev => ({ 
+      ...prev, 
+      saleType: (event.target.value as SaleType) || undefined 
+    }));
+  }, []);
+
+  const handleStartDateChange = useCallback((event: React.ChangeEvent<HTMLInputElement>): void => {
+    setFilters(prev => ({ ...prev, startDate: event.target.value }));
+  }, []);
+
+  const handleEndDateChange = useCallback((event: React.ChangeEvent<HTMLInputElement>): void => {
+    setFilters(prev => ({ ...prev, endDate: event.target.value }));
+  }, []);
+
+  const handleInvoicedChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>): void => {
+    setFilters(prev => ({ 
+      ...prev, 
+      isInvoiced: event.target.value === '' ? undefined : event.target.value === 'true' 
+    }));
+  }, []);
+
+  // Filtering logic with safe date handling
+  const filteredSales = sales.filter((sale: SaleResponse): boolean => {
     const matchesSearch = !filters.search || 
       sale.saleNumber.toLowerCase().includes(filters.search.toLowerCase()) ||
       sale.user.name.toLowerCase().includes(filters.search.toLowerCase()) ||
@@ -198,17 +286,35 @@ export const SaleList: React.FC = () => {
     const matchesSaleType = !filters.saleType || sale.saleType === filters.saleType;
     const matchesInvoiced = filters.isInvoiced === undefined || sale.isInvoiced === filters.isInvoiced;
     
-    const saleDate = new Date(sale.createdAt).toISOString().split('T')[0];
-    const matchesStartDate = !filters.startDate || saleDate >= filters.startDate;
-    const matchesEndDate = !filters.endDate || saleDate <= filters.endDate;
+    // Safe date comparison with validation
+    let matchesStartDate = true;
+    let matchesEndDate = true;
+    
+    if (filters.startDate || filters.endDate) {
+      const saleDate = safeFormatDate(sale.createdAt);
+      if (saleDate) {
+        matchesStartDate = !filters.startDate || saleDate >= filters.startDate;
+        matchesEndDate = !filters.endDate || saleDate <= filters.endDate;
+      }
+    }
 
     return matchesSearch && matchesStore && matchesSaleType && matchesInvoiced && 
            matchesStartDate && matchesEndDate;
   });
 
+  // Summary calculations with proper typing
+  const summaryStats: SummaryStats = {
+    totalSales: filteredSales.length,
+    totalAmount: filteredSales.reduce((sum: number, sale: SaleResponse) => sum + Number(sale.totalAmount), 0),
+    averageAmount: filteredSales.length > 0 
+      ? filteredSales.reduce((sum: number, sale: SaleResponse) => sum + Number(sale.totalAmount), 0) / filteredSales.length 
+      : 0
+  };
+
+  // Select options with proper typing
   const storeOptions: SelectOption[] = [
     { value: '', label: 'Todas las tiendas' },
-    ...stores.map(store => ({ value: store.id, label: store.name }))
+    ...stores.map((store: StoreResponse) => ({ value: store.id, label: store.name }))
   ];
 
   const saleTypeOptions: SelectOption[] = [
@@ -223,69 +329,66 @@ export const SaleList: React.FC = () => {
     { value: 'false', label: 'Sin Facturar' },
   ];
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('es-EC', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
-
+  // Table columns with proper typing
   const columns: TableColumn<SaleResponse>[] = [
     {
       key: 'saleNumber',
       header: 'Número de Venta',
-      render: (value: string) => (
-        <span className="font-mono text-sm font-bold">{value}</span>
+      render: (value: unknown): React.ReactNode => (
+        <span className="font-mono text-sm text-gray-800 font-bold">{String(value)}</span>
       ),
     },
     {
       key: 'createdAt',
       header: 'Fecha',
-      render: (value: string) => (
-        <span className="text-sm">
-          {new Date(value).toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          })}
+      render: (value: unknown): React.ReactNode => (
+        <span className="text-sm text-gray-700">
+          {formatDisplayDate(String(value))}
         </span>
       ),
     },
     {
       key: 'user.name',
       header: 'Vendedor',
-      render: (value: string) => <span className="font-medium text-sm">{value}</span>,
+      render: (value: unknown): React.ReactNode => (
+        <span className="font-medium text-sm text-gray-700">{String(value)}</span>
+      ),
     },
     {
       key: 'client',
       header: 'Cliente',
-      render: (value: any) => (
-        <span className="text-sm">
-          {value ? value.nameLastname : 'Cliente General'}
+      render: (value: unknown, row: SaleResponse): React.ReactNode => (
+        <span className="text-sm text-gray-700">
+          {row.client ? row.client.nameLastname : 'Cliente General'}
         </span>
       ),
     },
     {
       key: 'store.name',
       header: 'Tienda',
-      render: (value: string) => <Badge variant="secondary" size="sm">{value}</Badge>,
+      render: (value: unknown, row: SaleResponse): React.ReactNode => (
+        <Badge variant="secondary" size="sm">{row.store.name}</Badge>
+      ),
     },
     {
       key: 'saleType',
       header: 'Tipo',
-      render: (value: SaleType) => (
-        <Badge 
-          variant={value === SaleType.RETAIL ? 'primary' : 'secondary'} 
-          size="sm"
-        >
-          {value === SaleType.RETAIL ? 'Detalle' : 'Mayorista'}
-        </Badge>
-      ),
+      render: (value: unknown): React.ReactNode => {
+        const saleType = value as SaleType;
+        return (
+          <Badge 
+            variant={saleType === SaleType.RETAIL ? 'primary' : 'secondary'} 
+            size="sm"
+          >
+            {saleType === SaleType.RETAIL ? 'Detalle' : 'Mayorista'}
+          </Badge>
+        );
+      },
     },
     {
       key: 'totalAmount',
       header: 'Total',
-      render: (value: number) => (
+      render: (value: unknown): React.ReactNode => (
         <span className="font-bold text-green-600">
           {formatCurrency(Number(value))}
         </span>
@@ -294,16 +397,19 @@ export const SaleList: React.FC = () => {
     {
       key: 'isInvoiced',
       header: 'Facturado',
-      render: (value: boolean) => (
-        <Badge variant={value ? 'success' : 'warning'} size="sm">
-          {value ? 'Sí' : 'No'}
-        </Badge>
-      ),
+      render: (value: unknown): React.ReactNode => {
+        const isInvoiced = Boolean(value);
+        return (
+          <Badge variant={isInvoiced ? 'success' : 'warning'} size="sm">
+            {isInvoiced ? 'Sí' : 'No'}
+          </Badge>
+        );
+      },
     },
     {
       key: 'actions',
       header: 'Acciones',
-      render: (_: any, row: SaleResponse) => (
+      render: (_: unknown, row: SaleResponse): React.ReactNode => (
         <div className="flex space-x-1">
           <Button
             size="sm"
@@ -330,10 +436,6 @@ export const SaleList: React.FC = () => {
       ),
     },
   ];
-
-  // Calculate totals
-  const totalSales = filteredSales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
-  const averageSale = filteredSales.length > 0 ? totalSales / filteredSales.length : 0;
 
   return (
     <div className="space-y-6">
@@ -378,7 +480,7 @@ export const SaleList: React.FC = () => {
           <Input
             placeholder="Buscar por número, vendedor o cliente..."
             value={filters.search}
-            onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+            onChange={handleSearchChange}
             leftIcon={
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -389,42 +491,33 @@ export const SaleList: React.FC = () => {
           <Select
             options={storeOptions}
             value={filters.storeId?.toString() || ''}
-            onChange={(e) => setFilters(prev => ({ 
-              ...prev, 
-              storeId: e.target.value ? parseInt(e.target.value) : undefined 
-            }))}
+            onChange={handleStoreChange}
           />
           
           <Select
             options={saleTypeOptions}
             value={filters.saleType || ''}
-            onChange={(e) => setFilters(prev => ({ 
-              ...prev, 
-              saleType: e.target.value as SaleType || undefined 
-            }))}
+            onChange={handleSaleTypeChange}
           />
 
           <Input
             type="date"
             placeholder="Fecha desde"
             value={filters.startDate}
-            onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
+            onChange={handleStartDateChange}
           />
 
           <Input
             type="date"
             placeholder="Fecha hasta"
             value={filters.endDate}
-            onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+            onChange={handleEndDateChange}
           />
           
           <Select
             options={invoicedOptions}
             value={filters.isInvoiced?.toString() || ''}
-            onChange={(e) => setFilters(prev => ({ 
-              ...prev, 
-              isInvoiced: e.target.value === '' ? undefined : e.target.value === 'true' 
-            }))}
+            onChange={handleInvoicedChange}
           />
         </div>
         
@@ -442,7 +535,7 @@ export const SaleList: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Total Ventas</p>
               <p className="text-2xl font-bold text-blue-600">
-                {filteredSales.length}
+                {summaryStats.totalSales}
               </p>
             </div>
             <div className="text-blue-500">
@@ -458,7 +551,7 @@ export const SaleList: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Monto Total</p>
               <p className="text-xl font-bold text-green-600">
-                {formatCurrency(totalSales)}
+                {formatCurrency(summaryStats.totalAmount)}
               </p>
             </div>
             <div className="text-green-500">
@@ -475,7 +568,7 @@ export const SaleList: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Promedio por Venta</p>
               <p className="text-xl font-bold text-purple-600">
-                {formatCurrency(averageSale)}
+                {formatCurrency(summaryStats.averageAmount)}
               </p>
             </div>
             <div className="text-purple-500">
@@ -489,7 +582,7 @@ export const SaleList: React.FC = () => {
 
       <Card>
         <div className="mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0">
-          <h2 className="text-lg font-bold">
+          <h2 className="text-lg text-gray-800 font-bold">
             Ventas ({filteredSales.length})
           </h2>
         </div>

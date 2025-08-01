@@ -1,4 +1,4 @@
-// src/types/index.ts (Updated with Sales types)
+// src/types/index.ts (Actualizado según Backend Real)
 
 // Enums from backend
 export enum UserRole {
@@ -392,6 +392,77 @@ export interface InventoryMovementResponse extends BaseEntity {
   movementDate: string;
 }
 
+// UserActivity Types - ✅ NUEVO (faltaba)
+export interface UserActivity extends BaseEntity {
+  user: User;
+  activityType: string;
+  description: string;
+  entityType?: string;
+  entityId?: number;
+  ipAddress?: string;
+  userAgent?: string;
+  timestamp: string;
+}
+
+export interface UserActivityRequest {
+  userId: number;
+  activityType: string;
+  description: string;
+  entityType?: string;
+  entityId?: number;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+export interface UserActivityResponse extends BaseEntity {
+  user: UserResponse;
+  activityType: string;
+  description: string;
+  entityType?: string;
+  entityId?: number;
+  ipAddress?: string;
+  userAgent?: string;
+  timestamp: string;
+}
+
+// Receipt Types - ✅ NUEVO (faltaba)
+export interface Receipt extends BaseEntity {
+  receiptNumber: string;
+  sale: Sale;
+  issueDate: string;
+  customerName?: string;
+  customerIdentification?: string;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  paymentMethod?: string;
+  notes?: string;
+  isVoided: boolean;
+}
+
+export interface ReceiptRequest {
+  receiptNumber: string;
+  saleId: number;
+  customerName?: string;
+  customerIdentification?: string;
+  paymentMethod?: string;
+  notes?: string;
+}
+
+export interface ReceiptResponse extends BaseEntity {
+  receiptNumber: string;
+  sale: SaleResponse;
+  issueDate: string;
+  customerName?: string;
+  customerIdentification?: string;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  paymentMethod?: string;
+  notes?: string;
+  isVoided: boolean;
+}
+
 // API Response wrapper
 export interface ApiResponse<T> {
   data: T;
@@ -399,64 +470,43 @@ export interface ApiResponse<T> {
   status: number;
 }
 
-// Pagination
-export interface PaginatedResponse<T> {
-  content: T[];
-  totalElements: number;
-  totalPages: number;
-  size: number;
-  number: number;
-  first: boolean;
-  last: boolean;
+// Complete Sale with Receipt Request - ✅ NUEVO para endpoint específico
+export interface CompleteSaleWithReceiptRequest {
+  paymentMethod?: string;
+  additionalNotes?: string;
 }
 
-// Search and Filter types
-export interface ProductFilters {
-  search?: string;
-  categoryId?: number;
-  flavor?: string;
-  isActive?: boolean;
-  page?: number;
-  size?: number;
+// Health/Info API Responses - ✅ NUEVO
+export interface ApiInfoResponse {
+  application: string;
+  version: string;
+  status: string;
+  timestamp: string;
+  endpoints: Record<string, string>;
+  documentation: string;
+  support: string;
 }
 
-export interface InventoryFilters {
-  storeId?: number;
-  productId?: number;
-  movementType?: MovementType;
-  reason?: MovementReason;
-  startDate?: string;
-  endDate?: string;
-  page?: number;
-  size?: number;
+export interface HealthResponse {
+  status: string;
+  timestamp: string;
 }
 
-export interface SaleFilters {
-  search?: string;
-  storeId?: number;
-  saleType?: SaleType;
-  startDate?: string;
-  endDate?: string;
-  isInvoiced?: boolean;
-  page?: number;
-  size?: number;
-}
 
-// Stock Alert
+
 export interface StockAlert {
+  id: number;
   product: ProductResponse;
   store: StoreResponse;
   currentStock: number;
   minStockLevel: number;
   alertLevel: 'LOW' | 'CRITICAL' | 'OUT_OF_STOCK';
+  createdAt: string;
 }
 
-// Dashboard data
-export interface DashboardData {
-  totalProducts: number;
-  totalCategories: number;
-  totalStores: number;
-  lowStockAlerts: number;
-  recentMovements: InventoryMovementResponse[];
-  stockAlerts: StockAlert[];
+export interface BatchFilters {
+  storeId: string;
+  productId: string;
+  showExpiring: boolean;
+  showLowStock: boolean;
 }

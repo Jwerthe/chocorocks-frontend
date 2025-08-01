@@ -182,7 +182,7 @@ export const CategoryForm: React.FC<CategoryFormProps> = ({
     {
       key: 'name',
       header: 'Nombre',
-      render: (value: string) => <span className="font-medium">{value}</span>,
+      render: (value: string) => <span className="font-medium text-gray-800">{value}</span>,
     },
     {
       key: 'description',
@@ -193,19 +193,19 @@ export const CategoryForm: React.FC<CategoryFormProps> = ({
         </span>
       ),
     },
-    {
-      key: 'createdAt',
-      header: 'Creado',
-      render: (value: string) => (
-        <span className="text-sm text-gray-500">
-          {new Date(value).toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          })}
-        </span>
-      ),
-    },
+    // {
+    //   key: 'createdAt',
+    //   header: 'Creado',
+    //   render: (value: string) => (
+    //     <span className="text-sm text-gray-500">
+    //       {new Date(value).toLocaleDateString('es-ES', {
+    //         year: 'numeric',
+    //         month: 'short',
+    //         day: 'numeric'
+    //       })}
+    //     </span>
+    //   ),
+    // },
     {
       key: 'actions',
       header: 'Acciones',

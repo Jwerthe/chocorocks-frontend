@@ -1,11 +1,10 @@
-// src/services/authService.ts
+// src/services/authService.ts (Versión Limpia)
 import { supabase } from '@/lib/supabase';
-import { LoginCredentials, User, AuthUserResponse, ApiError } from '@/types/auth';
+import { LoginCredentials, User, AuthUserResponse } from '@/types/auth';
 import Cookies from 'js-cookie';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-// Clase de error personalizada para API
 export class AuthError extends Error {
   public code?: string;
   public status?: number;
@@ -18,7 +17,6 @@ export class AuthError extends Error {
   }
 }
 
-// Interfaz para la respuesta de Supabase
 interface SupabaseSession {
   access_token: string;
   refresh_token: string;
@@ -68,23 +66,6 @@ class AuthService {
     }
   }
 
-  async logout(): Promise<void> {
-    try {
-      // 1. Cerrar sesión en Supabase
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.warn('Error al cerrar sesión en Supabase:', error.message);
-      }
-      
-      // 2. Eliminar tokens de cookies
-      this.clearTokens();
-    } catch (error: unknown) {
-      console.error('Error al cerrar sesión:', error);
-      // Aún así elimina los tokens locales
-      this.clearTokens();
-    }
-  }
-
   async validateTokenWithBackend(token: string): Promise<User> {
     try {
       const response = await fetch(`${API_URL}/chocorocks/api/auth/me`, {
@@ -98,7 +79,17 @@ class AuthService {
         if (response.status === 401) {
           throw new AuthError('Token inválido o expirado', 'INVALID_TOKEN', 401);
         }
-        throw new AuthError('Error del servidor', 'SERVER_ERROR', response.status);
+        if (response.status === 403) {
+          throw new AuthError('No tienes permisos para acceder', 'FORBIDDEN', 403);
+        }
+        if (response.status === 404) {
+          throw new AuthError('Endpoint no encontrado', 'NOT_FOUND', 404);
+        }
+        if (response.status >= 500) {
+          throw new AuthError('Error interno del servidor', 'SERVER_ERROR', response.status);
+        }
+        
+        throw new AuthError(`Error del servidor: ${response.status}`, 'SERVER_ERROR', response.status);
       }
 
       const userData: AuthUserResponse = await response.json();
@@ -108,7 +99,7 @@ class AuthService {
         throw error;
       }
       if (error instanceof TypeError) {
-        throw new AuthError('Error de conexión con el servidor', 'NETWORK_ERROR');
+        throw new AuthError('Error de conexión con el servidor. Verifica que el backend esté funcionando.', 'NETWORK_ERROR');
       }
       throw new AuthError('Error al validar token', 'VALIDATION_ERROR');
     }
@@ -124,6 +115,23 @@ class AuthService {
       // Token inválido, limpiar cookies
       this.clearTokens();
       return null;
+    }
+  }
+
+  async logout(): Promise<void> {
+    try {
+      // 1. Cerrar sesión en Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.warn('Error al cerrar sesión en Supabase:', error.message);
+      }
+      
+      // 2. Eliminar tokens de cookies
+      this.clearTokens();
+    } catch (error: unknown) {
+      console.error('Error al cerrar sesión:', error);
+      // Aún así elimina los tokens locales
+      this.clearTokens();
     }
   }
 

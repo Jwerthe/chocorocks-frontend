@@ -1,18 +1,29 @@
-// src/middleware.ts (Actualizado)
+// src/middleware.ts (CORREGIDO)
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  // Rutas públicas que no requieren autenticación
-  const publicPaths = ['/login', '/api'];
   const { pathname } = request.nextUrl;
   
-  // Permitir rutas públicas
+  // 🔄 Rutas API que van al backend - dejar pasar (se valida en backend)
+  if (pathname.startsWith('/api/')) {
+    // Solo agregar headers CORS, no validar autenticación aquí
+    const response = NextResponse.next();
+    
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    return response;
+  }
+
+  // 🔓 Rutas públicas del frontend
+  const publicPaths = ['/login'];
   if (publicPaths.some(path => pathname.startsWith(path))) {
     return NextResponse.next();
   }
 
-  // Verificar token de autenticación
+  // 🔐 Verificar token de autenticación para rutas del frontend
   const token = request.cookies.get('auth-token');
   
   if (!token) {
@@ -21,24 +32,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Add CORS headers for API routes
-  if (pathname.startsWith('/api/')) {
-    const response = NextResponse.next();
-    
-    response.headers.set('Access-Control-Allow-Origin', '*');
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    
-    return response;
-  }
-
-  // Handle preflight requests
+  // 🎯 Handle preflight requests (OPTIONS)
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       },
     });
@@ -49,12 +49,12 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/',
-    '/products/:path*',
-    '/inventory/:path*',
-    '/sales/:path*',
-    '/stores/:path*',
-    '/clients/:path*',
-    '/api/:path*',
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

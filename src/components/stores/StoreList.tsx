@@ -211,7 +211,7 @@ export const StoreList: React.FC = () => {
     {
       key: 'name',
       header: 'Nombre',
-      render: (value: string) => <span className="font-medium">{value}</span>,
+      render: (value: string) => <span className="font-medium text-gray-700">{value}</span>,
     },
     {
       key: 'typeStore',
@@ -235,9 +235,9 @@ export const StoreList: React.FC = () => {
       key: 'manager',
       header: 'Gerente',
       render: (value: UserResponse | undefined) => (
-        <span className="text-sm">
+        <span className="text-sm text-gray-600">
           {value ? value.name : (
-            <span className="text-gray-400 italic">Sin asignar</span>
+            <span className="text-gray-600 italic">Sin asignar</span>
           )}
         </span>
       ),
@@ -246,7 +246,7 @@ export const StoreList: React.FC = () => {
       key: 'phoneNumber',
       header: 'Teléfono',
       render: (value: string | undefined) => (
-        <span className="text-sm font-mono">
+        <span className="text-sm text-gray-700 font-mono">
           {value || '-'}
         </span>
       ),
@@ -255,13 +255,13 @@ export const StoreList: React.FC = () => {
       key: 'schedule',
       header: 'Horario',
       render: (_: any, row: StoreResponse) => (
-        <div className="text-sm">
+        <div className="text-sm text-gray-800">
           {row.scheduleOpen && row.scheduleClosed ? (
             <span>
               {formatTime(row.scheduleOpen)} - {formatTime(row.scheduleClosed)}
             </span>
           ) : (
-            <span className="text-gray-400">Sin definir</span>
+            <span className="text-gray-600">Sin definir</span>
           )}
         </div>
       ),
@@ -389,7 +389,7 @@ export const StoreList: React.FC = () => {
 
       <Card>
         <div className="mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0">
-          <h2 className="text-lg font-bold">
+          <h2 className="text-lg text-gray-800 font-bold">
             Tiendas ({filteredStores.length})
           </h2>
           <div className="text-sm text-gray-600">

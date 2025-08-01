@@ -47,23 +47,23 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             </svg>
           </Button>
           
-          <div className="hidden sm:block">
+          {/* <div className="hidden sm:block">
             <h1 className="text-xl lg:text-2xl font-bold text-gray-900">
               Sistema de Inventario Chocorocks
             </h1>
-          </div>
+          </div> */}
           
-          <div className="block sm:hidden">
+          {/* <div className="block sm:hidden">
             <h1 className="text-lg font-bold text-gray-900">
               Chocorocks
             </h1>
-          </div>
+          </div> */}
         </div>
 
         {/* Right side - User menu and actions */}
         <div className="flex items-center space-x-2 sm:space-x-4">
           {/* Notifications */}
-          <button 
+          {/* <button 
             className="p-2 text-gray-500 hover:text-gray-700 relative transition-colors"
             type="button"
             aria-label="Notificaciones"
@@ -72,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM15 17H9a6 6 0 01-6-6V9a6 6 0 016-6h6a6 6 0 016 6v2" />
             </svg>
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-1 ring-white"></span>
-          </button>
+          </button> */}
 
           {/* User menu */}
           <div className="relative">

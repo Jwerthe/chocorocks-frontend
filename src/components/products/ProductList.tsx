@@ -214,16 +214,16 @@ export const ProductList: React.FC = () => {
     {
       key: 'code',
       header: 'Código',
-      render: (value: string) => <span className="font-mono text-sm">{value}</span>,
+      render: (value: string) => <span className="font-mono text-gray-700 text-sm">{value}</span>,
     },
     {
       key: 'nameProduct',
       header: 'Nombre',
       render: (value: string, row: ProductResponse) => (
         <div>
-          <span className="font-medium">{value}</span>
+          <span className="font-medium text-gray-800">{value}</span>
           {row.description && (
-            <p className="text-xs text-gray-500 mt-1 truncate" title={row.description}>
+            <p className="text-xs text-gray-700 mt-1 truncate" title={row.description}>
               {row.description.length > 50 ? `${row.description.substring(0, 50)}...` : row.description}
             </p>
           )}
@@ -238,12 +238,12 @@ export const ProductList: React.FC = () => {
     {
       key: 'flavor',
       header: 'Sabor',
-      render: (value: string) => value || '-',
+      render: (value: string) => <span className='text-gray-700'> {value || '-' }</span>,
     },
     {
       key: 'size',
       header: 'Tamaño',
-      render: (value: string) => value || '-',
+      render: (value: string) => <span className='text-gray-700'>{value || '-'}</span>,
     },
     {
       key: 'retailPrice',
@@ -398,7 +398,7 @@ export const ProductList: React.FC = () => {
 
       <Card>
         <div className="mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0">
-          <h2 className="text-lg font-bold">
+          <h2 className="text-lg text-gray-700 font-bold">
             Productos ({filteredProducts.length})
           </h2>
           {categories.length === 0 && (

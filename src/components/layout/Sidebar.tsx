@@ -1,9 +1,12 @@
-// src/components/layout/Sidebar.tsx (Updated with Sales)
+// src/components/layout/Sidebar.tsx (Updated with Users for Admin)
 'use client';
 
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import Image from 'next/image';
+
 
 interface SidebarProps {
   isOpen: boolean;
@@ -14,10 +17,12 @@ interface MenuItem {
   name: string;
   href: string;
   icon: React.ReactNode;
+  adminOnly?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
+  const { user } = useAuth();
 
   const menuItems: MenuItem[] = [
     {
@@ -76,6 +81,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       )
     },
     {
+      name: 'Usuarios',
+      href: '/users',
+      adminOnly: true,
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+        </svg>
+      )
+    },
+    {
       name: 'Alertas',
       href: '/alerts',
       icon: (
@@ -94,6 +109,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       )
     },
   ];
+
+  // Filtrar elementos del menú basado en el rol del usuario
+  const filteredMenuItems = menuItems.filter(item => {
+    if (item.adminOnly) {
+      return user?.role === 'ADMIN';
+    }
+    return true;
+  });
 
   const isActive = (href: string): boolean => {
     if (href === '/') {
@@ -117,10 +140,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b-2 border-black bg-[#7ca1eb]">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-white border-2 border-black flex items-center justify-center font-bold text-[#7ca1eb]">
-              C
-            </div>
-            <h2 className="text-xl font-bold text-white">Chocorocks</h2>
+            <Image
+              src="/images/logos/chocologo.png"
+              alt="Logo de Chocorocks"
+              width={300}
+              height={120}
+            />
           </div>
           <button
             onClick={onClose}
@@ -137,7 +162,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         {/* Navigation */}
         <nav className="p-4 flex-1 overflow-y-auto">
           <ul className="space-y-2">
-            {menuItems.map((item) => (
+            {filteredMenuItems.map((item) => (
               <li key={item.name}>
                 <Link
                   href={item.href}
@@ -153,6 +178,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 >
                   {item.icon}
                   <span>{item.name}</span>
+                  {item.adminOnly && (
+                    <span className="ml-auto">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 1l3 3v2h2l3 3v8a2 2 0 01-2 2H4a2 2 0 01-2-2V9l3-3h2V4l3-3z" clipRule="evenodd" />
+                      </svg>
+                    </span>
+                  )}
                 </Link>
               </li>
             ))}
@@ -164,6 +196,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <div className="text-center text-sm text-gray-600">
             <p className="font-medium">Sistema de Inventario</p>
             <p>v1.0.0</p>
+            {/* {user && (
+              <div className="mt-2 pt-2 border-t border-gray-300">
+                <p className="font-medium text-[#7ca1eb]">{user.name}</p>
+                <p className="text-xs text-gray-500">{user.role}</p>
+              </div>
+            )} */}
           </div>
         </div>
       </div>

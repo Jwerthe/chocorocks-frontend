@@ -282,25 +282,6 @@ export const StoreForm: React.FC<StoreFormProps> = ({
           </label>
         </div>
 
-        {/* Preview section */}
-        {formData.name && (
-          <div className="bg-gray-50 border-2 border-gray-200 p-4 rounded">
-            <h4 className="font-medium text-gray-800 mb-2">Vista Previa:</h4>
-            <div className="text-sm space-y-1">
-              <div><strong>Nombre:</strong> {formData.name}</div>
-              <div><strong>Tipo:</strong> {storeTypeOptions.find(opt => opt.value === formData.typeStore)?.label}</div>
-              <div><strong>Dirección:</strong> {formData.address}</div>
-              {formData.phoneNumber && <div><strong>Teléfono:</strong> {formData.phoneNumber}</div>}
-              {formData.scheduleOpen && formData.scheduleClosed && (
-                <div><strong>Horario:</strong> {formData.scheduleOpen} - {formData.scheduleClosed}</div>
-              )}
-              {formData.managerId && (
-                <div><strong>Gerente:</strong> {users.find(u => u.id === formData.managerId)?.name}</div>
-              )}
-            </div>
-          </div>
-        )}
-
         <div className="flex justify-end space-x-3 pt-4 border-t-2 border-gray-200">
           <Button
             type="button"
