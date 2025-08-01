@@ -1,3 +1,4 @@
+// src/components/auth/LoginForm.tsx (Corregido)
 'use client';
 
 import React, { useState, useCallback, FormEvent, ChangeEvent } from 'react';
@@ -7,7 +8,6 @@ import { Alert } from '@/components/ui/Alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginCredentials, FormErrors } from '@/types/auth';
 
-// Interfaces específicas del componente
 interface LoginFormState {
   credentials: LoginCredentials;
   showPassword: boolean;
@@ -15,18 +15,6 @@ interface LoginFormState {
   touched: Record<keyof LoginCredentials, boolean>;
 }
 
-interface ValidationRule {
-  required?: boolean;
-  email?: boolean;
-  minLength?: number;
-  message: string;
-}
-
-interface ValidationRules {
-  [key: string]: ValidationRule[];
-}
-
-// Estado inicial del formulario
 const initialFormState: LoginFormState = {
   credentials: {
     email: '',
@@ -40,45 +28,25 @@ const initialFormState: LoginFormState = {
   },
 };
 
-// Reglas de validación
-const validationRules: ValidationRules = {
-  email: [
-    { required: true, message: 'El email es requerido' },
-    { email: true, message: 'Ingresa un email válido' },
-  ],
-  password: [
-    { required: true, message: 'La contraseña es requerida' },
-    { minLength: 6, message: 'La contraseña debe tener al menos 6 caracteres' },
-  ],
-};
-
 export const LoginForm: React.FC = () => {
   const [formState, setFormState] = useState<LoginFormState>(initialFormState);
   const { login, loading, error, clearError } = useAuth();
 
-  // Validación de campo individual
   const validateField = useCallback((name: keyof LoginCredentials, value: string): string => {
-    const rules = validationRules[name];
-    if (!rules) return '';
-
-    for (const rule of rules) {
-      if (rule.required && !value.trim()) {
-        return rule.message;
-      }
-      
-      if (rule.email && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-        return rule.message;
-      }
-      
-      if (rule.minLength && value && value.length < rule.minLength) {
-        return rule.message;
-      }
+    switch (name) {
+      case 'email':
+        if (!value.trim()) return 'El email es requerido';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Ingresa un email válido';
+        return '';
+      case 'password':
+        if (!value.trim()) return 'La contraseña es requerida';
+        if (value.length < 6) return 'La contraseña debe tener al menos 6 caracteres';
+        return '';
+      default:
+        return '';
     }
-    
-    return '';
   }, []);
 
-  // Validación completa del formulario
   const validateForm = useCallback((): boolean => {
     const newErrors: FormErrors = {};
     let isValid = true;
@@ -96,7 +64,6 @@ export const LoginForm: React.FC = () => {
     return isValid;
   }, [formState.credentials, validateField]);
 
-  // Manejo de cambios en inputs
   const handleInputChange = useCallback((e: ChangeEvent<HTMLInputElement>): void => {
     const { name, value } = e.target;
     const fieldName = name as keyof LoginCredentials;
@@ -117,13 +84,11 @@ export const LoginForm: React.FC = () => {
       },
     }));
     
-    // Limpia errores globales cuando el usuario empieza a escribir
     if (error) {
       clearError();
     }
   }, [error, clearError, validateField]);
 
-  // Manejo de blur en inputs
   const handleInputBlur = useCallback((e: ChangeEvent<HTMLInputElement>): void => {
     const { name, value } = e.target;
     const fieldName = name as keyof LoginCredentials;
@@ -141,11 +106,12 @@ export const LoginForm: React.FC = () => {
     }));
   }, [validateField]);
 
-  // Envío del formulario
   const handleSubmit = useCallback(async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     
-    // Marcar todos los campos como tocados
+    console.log('🔄 Iniciando proceso de login...');
+    console.log('📧 Email:', formState.credentials.email);
+    
     setFormState(prev => ({
       ...prev,
       touched: {
@@ -155,18 +121,19 @@ export const LoginForm: React.FC = () => {
     }));
 
     if (!validateForm()) {
+      console.log('❌ Formulario inválido');
       return;
     }
 
     try {
+      console.log('📤 Enviando credenciales...');
       await login(formState.credentials);
+      console.log('✅ Login exitoso');
     } catch (error) {
-      // Error manejado por el contexto
-      console.error('Error en login:', error);
+      console.error('❌ Error en login:', error);
     }
   }, [formState.credentials, validateForm, login]);
 
-  // Toggle visibilidad de contraseña
   const togglePasswordVisibility = useCallback((): void => {
     setFormState(prev => ({
       ...prev,
@@ -174,7 +141,6 @@ export const LoginForm: React.FC = () => {
     }));
   }, []);
 
-  // Verifica si el formulario es válido
   const isFormValid = Object.keys(formState.errors).every(key => !formState.errors[key]) &&
     formState.credentials.email.trim() !== '' &&
     formState.credentials.password.trim() !== '';
@@ -266,25 +232,10 @@ export const LoginForm: React.FC = () => {
               variant="primary"
               size="lg"
               disabled={loading || !isFormValid}
+              isLoading={loading}
               className="w-full"
             >
-              {loading ? (
-                <div className="flex items-center justify-center">
-                  <svg 
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    fill="none" 
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Iniciando sesión...
-                </div>
-              ) : (
-                'Iniciar Sesión'
-              )}
+              {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>
           </form>
 
@@ -294,10 +245,6 @@ export const LoginForm: React.FC = () => {
               <button 
                 type="button"
                 className="font-semibold text-[#7ca1eb] hover:underline focus:outline-none focus:underline transition-all"
-                onClick={() => {
-                  // TODO: Implementar recuperación de contraseña
-                  console.log('Recuperar contraseña');
-                }}
               >
                 Contacta al administrador
               </button>
@@ -305,7 +252,6 @@ export const LoginForm: React.FC = () => {
           </div>
         </div>
 
-        {/* Información adicional */}
         <div className="mt-8 text-center text-sm text-gray-500">
           <p>Sistema de Inventario Chocorocks</p>
           <p>Tesis PUCE TEC 2025</p>
