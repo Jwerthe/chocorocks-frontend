@@ -328,7 +328,7 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
   ];
 
   const storeOptions = [
-    { value: '', label: 'Bodega Central (Sin asignar)' },
+    { value: '', label: 'Sin asignar' },
     ...stores.map(store => ({ value: store.id.toString(), label: store.name }))
   ];
 
@@ -420,7 +420,7 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
           <Input
             label="Costo del Lote ($)*"
             type="number"
-            step="0.01"
+            step="1"
             min="0"
             max="100000"
             value={formData.batchCost}

@@ -249,7 +249,7 @@ export const LoginForm: React.FC = () => {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          {/* <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               ¿Olvidaste tu contraseña?{' '}
               <button 
@@ -259,7 +259,7 @@ export const LoginForm: React.FC = () => {
                 Contacta al administrador
               </button>
             </p>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

@@ -362,14 +362,14 @@ export const SaleList: React.FC = () => {
         <span className="font-mono text-sm text-gray-800 font-bold">{String(value)}</span>
       ),
     },
-    {
-      key: 'createdAt',
+     {
+     key: 'createdAt',
       header: 'Fecha',
-      render: (value: unknown): React.ReactNode => (
+     render: (value: unknown): React.ReactNode => (
         <span className="text-sm text-gray-700">
-          {formatDisplayDate(String(value))}
-        </span>
-      ),
+         {formatDisplayDate(String(value))}
+       </span>
+     ),
     },
     {
       key: 'user.name',

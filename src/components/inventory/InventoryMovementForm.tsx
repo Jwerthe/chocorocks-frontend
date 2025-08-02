@@ -385,15 +385,15 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
                       </div>
                       <div>
                         <span className="text-gray-600">Disponible:</span> 
-                        <span className="font-bold ml-2">{selectedBatch.currentQuantity} unidades</span>
+                        <span className="font-bold text-gray-600 ml-2">{selectedBatch.currentQuantity} unidades</span>
                       </div>
                       <div>
                         <span className="text-gray-600">Vencimiento:</span> 
-                        <span className="ml-2">{new Date(selectedBatch.expirationDate).toLocaleDateString()}</span>
+                        <span className="ml-2 text-gray-600">{new Date(selectedBatch.expirationDate).toLocaleDateString()}</span>
                       </div>
                       <div>
                         <span className="text-gray-600">Ubicación:</span> 
-                        <span className="ml-2">{selectedBatch.store?.name || 'Bodega Central'}</span>
+                        <span className="ml-2 text-gray-600">{selectedBatch.store?.name || 'Bodega Central'}</span>
                       </div>
                     </div>
                   </div>

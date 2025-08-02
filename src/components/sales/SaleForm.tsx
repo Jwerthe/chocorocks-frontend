@@ -652,7 +652,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           <Input
             label="Descuento (%)"
             type="number"
-            step="0.01"
+            step="1"
             value={formData.discountPercentage}
             onChange={(e) => handleInputChange('discountPercentage', parseFloat(e.target.value) || 0)}
             error={errors.discountPercentage}
@@ -664,7 +664,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           <Input
             label="Impuesto (%)"
             type="number"
-            step="0.01"
+            step="1"
             value={formData.taxPercentage}
             onChange={(e) => handleInputChange('taxPercentage', parseFloat(e.target.value) || 0)}
             error={errors.taxPercentage}

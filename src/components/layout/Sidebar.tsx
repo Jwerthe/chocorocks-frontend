@@ -138,7 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       {/* Layout en columna */}
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b-2 border-black bg-[#7ca1eb]">
+        <div className="flex items-center justify-between p-2 border-b-2 border-black bg-[#7ca1eb]">
           <div className="flex items-center space-x-3">
             <Image
               src="/images/logos/chocologo.png"
