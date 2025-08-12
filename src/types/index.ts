@@ -1,9 +1,9 @@
 // src/types/index.ts (Actualizado según Backend Real)
 
-// Enums from backend
+// ✅ ACTUALIZADO: Enums from backend
 export enum UserRole {
   ADMIN = 'ADMIN',
-  EMPLOYEE = 'EMPLOYEE'
+  EMPLOYEE = 'EMPLOYEE' // ⚠️ CAMBIO: Antes era USER, ahora EMPLOYEE
 }
 
 export enum IdentificationType {
@@ -392,7 +392,7 @@ export interface InventoryMovementResponse extends BaseEntity {
   movementDate: string;
 }
 
-// UserActivity Types - ✅ NUEVO (faltaba)
+// UserActivity Types
 export interface UserActivity extends BaseEntity {
   user: User;
   activityType: string;
@@ -425,7 +425,7 @@ export interface UserActivityResponse extends BaseEntity {
   timestamp: string;
 }
 
-// Receipt Types - ✅ NUEVO (faltaba)
+// Receipt Types
 export interface Receipt extends BaseEntity {
   receiptNumber: string;
   sale: Sale;
@@ -463,6 +463,155 @@ export interface ReceiptResponse extends BaseEntity {
   isVoided: boolean;
 }
 
+// ✅ NUEVOS TIPOS PARA REPORTS API
+export interface SalesReportResponse {
+  period: string;
+  totalSales: number;
+  totalRevenue: number;
+  averageTicket: number;
+  salesByStore: Array<{
+    storeName: string;
+    salesCount: number;
+    revenue: number;
+  }>;
+  salesByProduct: Array<{
+    productName: string;
+    quantitySold: number;
+    revenue: number;
+  }>;
+  dailySales: Array<{
+    date: string;
+    sales: number;
+    revenue: number;
+  }>;
+}
+
+export interface InventoryReportResponse {
+  totalProducts: number;
+  lowStockProducts: number;
+  expiredProducts: number;
+  totalStockValue: number;
+  inventoryByStore: Array<{
+    storeName: string;
+    productsCount: number;
+    totalStock: number;
+    stockValue: number;
+  }>;
+  productRotation: Array<{
+    productName: string;
+    currentStock: number;
+    minStockLevel: number;
+    status: 'normal' | 'low' | 'critical';
+    daysOfStock: number;
+  }>;
+  expiredBatches: Array<{
+    batchCode: string;
+    productName: string;
+    expirationDate: string;
+    quantity: number;
+  }>;
+}
+
+export interface ProfitabilityReportResponse {
+  totalRevenue: number;
+  totalCosts: number;
+  grossProfit: number;
+  profitMargin: number;
+  profitabilityByProduct: Array<{
+    productName: string;
+    revenue: number;
+    costs: number;
+    profit: number;
+    margin: number;
+    unitsSold: number;
+  }>;
+  profitabilityByStore: Array<{
+    storeName: string;
+    revenue: number;
+    costs: number;
+    profit: number;
+    margin: number;
+  }>;
+}
+
+export interface BestSellingProductsReportResponse {
+  period: string;
+  totalProductsSold: number;
+  products: Array<{
+    rank: number;
+    productId: number;
+    productName: string;
+    productCode: string;
+    categoryName: string;
+    quantitySold: number;
+    revenue: number;
+    averagePrice: number;
+    salesCount: number;
+    marketShare: number;
+  }>;
+}
+
+export interface TraceabilityReportResponse {
+  batchInfo: {
+    batchCode: string;
+    productName: string;
+    productionDate: string;
+    expirationDate: string;
+    initialQuantity: number;
+    currentQuantity: number;
+  } | null;
+  movements: Array<{
+    id: number;
+    movementType: string;
+    quantity: number;
+    reason: string;
+    movementDate: string;
+    fromStore?: string;
+    toStore?: string;
+    userName: string;
+    notes?: string;
+  }>;
+  sales: Array<{
+    saleNumber: string;
+    date: string;
+    quantity: number;
+    unitPrice: number;
+    subtotal: number;
+    storeName: string;
+    clientName?: string;
+  }>;
+  summary: {
+    totalProduced: number;
+    totalSold: number;
+    totalMoved: number;
+    remaining: number;
+  };
+}
+
+export interface ExecutiveDashboardResponse {
+  period: string;
+  totalRevenue: number;
+  totalSales: number;
+  averageTicket: number;
+  profitMargin: number;
+  topProducts: Array<{
+    productName: string;
+    revenue: number;
+    quantitySold: number;
+  }>;
+  salesTrend: Array<{
+    date: string;
+    sales: number;
+    revenue: number;
+  }>;
+  storePerformance: Array<{
+    storeName: string;
+    sales: number;
+    revenue: number;
+    profit: number;
+  }>;
+}
+
 // API Response wrapper
 export interface ApiResponse<T> {
   data: T;
@@ -470,13 +619,13 @@ export interface ApiResponse<T> {
   status: number;
 }
 
-// Complete Sale with Receipt Request - ✅ NUEVO para endpoint específico
+// Complete Sale with Receipt Request
 export interface CompleteSaleWithReceiptRequest {
   paymentMethod?: string;
   additionalNotes?: string;
 }
 
-// Health/Info API Responses - ✅ NUEVO
+// Health/Info API Responses
 export interface ApiInfoResponse {
   application: string;
   version: string;
@@ -491,8 +640,6 @@ export interface HealthResponse {
   status: string;
   timestamp: string;
 }
-
-
 
 export interface StockAlert {
   id: number;

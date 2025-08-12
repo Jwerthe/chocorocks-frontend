@@ -147,6 +147,27 @@ export const InventoryList: React.FC = () => {
     });
   };
 
+  const isValidDate = (dateString: string | null | undefined): boolean => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    return !isNaN(date.getTime());
+  };
+
+  const formatDisplayDate = (dateString: string | null | undefined): string => {
+    if (!isValidDate(dateString)) return 'Fecha inválida';
+    
+    try {
+      const date = new Date(dateString!);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0'); // meses base 0
+      const year = date.getFullYear();
+      return `${day}.${month}.${year}`;
+    } catch {
+      return 'Fecha inválida';
+    }
+  };
+
+
   const handleFilterChange = (field: keyof BatchFilters, value: string | boolean): void => {
     setFilters(prev => ({ ...prev, [field]: value }));
   };
@@ -244,7 +265,9 @@ export const InventoryList: React.FC = () => {
     {
       key: 'productionDate',
       header: 'Fecha de Producción',
-      render: (value: string) => <span className='text-gray-700'>{new Date(value).toLocaleDateString()}</span>,
+      render: (value: string) => (
+        <span className='text-gray-700'>{formatDisplayDate(value)}</span>
+      ),
     },
     {
       key: 'expirationDate',
@@ -253,7 +276,7 @@ export const InventoryList: React.FC = () => {
         const { status, variant } = getExpirationStatus(value);
         return (
           <div>
-            <div className='text-gray-700'>{new Date(value).toLocaleDateString()}</div>
+            <div className='text-gray-700'>{formatDisplayDate(value)}</div>
             <Badge variant={variant} size="sm">{status}</Badge>
           </div>
         );

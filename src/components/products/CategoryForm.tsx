@@ -195,17 +195,17 @@ export const CategoryForm: React.FC<CategoryFormProps> = ({
     },
     // {
     //   key: 'createdAt',
-    //   header: 'Creado',
-    //   render: (value: string) => (
+    //    header: 'Creado',
+    //    render: (value: string) => (
     //     <span className="text-sm text-gray-500">
     //       {new Date(value).toLocaleDateString('es-ES', {
-    //         year: 'numeric',
-    //         month: 'short',
-    //         day: 'numeric'
+    //          year: 'numeric',
+    //        month: 'short',
+    //        day: 'numeric'
     //       })}
     //     </span>
     //   ),
-    // },
+    //  },
     {
       key: 'actions',
       header: 'Acciones',

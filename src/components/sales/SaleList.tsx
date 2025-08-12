@@ -83,19 +83,18 @@ const formatCurrency = (amount: number): string => {
   }).format(amount);
 };
 
-const formatDisplayDate = (dateString: string | null | undefined): string => {
-  if (!isValidDate(dateString)) return 'Fecha inválida';
-  
-  try {
-    return new Date(dateString!).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return 'Fecha inválida';
-  }
-};
+  const formatDisplayDate = (dateInput: string | Date | null | undefined): string => {
+    if (!dateInput) return 'Fecha inválida';
+
+    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+    if (isNaN(date.getTime())) return 'Fecha inválida';
+
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+
+    return `${day}.${month}.${year}`;
+  };
 
 export const SaleList: React.FC = () => {
   // State with proper typing

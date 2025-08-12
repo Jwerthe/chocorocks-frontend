@@ -1,9 +1,9 @@
-// src/types/auth.ts (Actualizado con todos los tipos)
+// src/types/auth.ts (Actualizado con nuevos roles)
 export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'ADMIN' | 'EMPLOYEE';
+  role: 'ADMIN' | 'EMPLOYEE'; // ⚠️ CAMBIO: Antes era 'USER', ahora 'EMPLOYEE'
   isAuthenticated: boolean;
 }
 

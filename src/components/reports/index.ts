@@ -6,6 +6,7 @@ export { InventoryReport } from './InventoryReport';
 export { ProfitabilityReport } from './ProfitabilityReport';
 export { TopProductsReport } from './TopProductsReport';
 export { TraceabilityReport } from './TraceabilityReport';
+export { ExecutiveDashboard } from './ExecutiveDashboard';
 
 // Export widget components
 export { 

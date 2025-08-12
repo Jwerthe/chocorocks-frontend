@@ -1,4 +1,4 @@
-// src/services/api.ts (CORREGIDO SEGÚN BACKEND REAL)
+// src/services/api.ts (CORREGIDO - URLs y Headers)
 import {
   CategoryRequest,
   CategoryResponse,
@@ -20,6 +20,12 @@ import {
   SaleDetailResponse,
   UserRequest,
   UserResponse,
+  SalesReportResponse,
+  InventoryReportResponse,
+  ProfitabilityReportResponse,
+  BestSellingProductsReportResponse,
+  TraceabilityReportResponse,
+  ExecutiveDashboardResponse,
 } from '@/types';
 import Cookies from 'js-cookie';
 
@@ -41,8 +47,11 @@ class ApiService {
   private baseUrl: string;
 
   constructor(endpoint: string) {
-    // Corregido: usar el path correcto del backend
-    this.baseUrl = `/api${endpoint}`;
+    // ✅ CORREGIDO: Usar el endpoint completo del backend
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://23.20.243.209:8080';
+    this.baseUrl = `${apiBaseUrl}/chocorocks/api${endpoint}`;
+    
+    console.log(`🌐 API Service initialized for: ${this.baseUrl}`);
   }
 
   // Método para obtener el token automáticamente
@@ -59,6 +68,9 @@ class ApiService {
     const token = this.getAuthToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      console.log('🔑 Token incluido en headers');
+    } else {
+      console.warn('⚠️ No hay token de autenticación');
     }
 
     return headers;
@@ -141,6 +153,7 @@ class ApiService {
   }
 
   protected async post<T>(endpoint: string, data?: any): Promise<T> {
+    console.log(`📤 POST Data:`, data);
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
@@ -166,7 +179,7 @@ class ApiService {
   }
 }
 
-// Category API - ✅ Correcto según backend
+// Category API
 export class CategoryAPI extends ApiService {
   constructor() {
     super('/categories');
@@ -193,7 +206,7 @@ export class CategoryAPI extends ApiService {
   }
 }
 
-// Product API - ✅ Solo endpoints que existen en backend
+// Product API
 export class ProductAPI extends ApiService {
   constructor() {
     super('/products');
@@ -220,7 +233,7 @@ export class ProductAPI extends ApiService {
   }
 }
 
-// Store API - ✅ Solo endpoints que existen en backend
+// Store API
 export class StoreAPI extends ApiService {
   constructor() {
     super('/stores');
@@ -247,7 +260,7 @@ export class StoreAPI extends ApiService {
   }
 }
 
-// Client API - ✅ Solo endpoints que existen en backend
+// Client API
 export class ClientAPI extends ApiService {
   constructor() {
     super('/clients');
@@ -274,7 +287,7 @@ export class ClientAPI extends ApiService {
   }
 }
 
-// Sale API - ✅ Solo endpoints que existen en backend + endpoint especial
+// Sale API
 export class SaleAPI extends ApiService {
   constructor() {
     super('/sales');
@@ -300,7 +313,6 @@ export class SaleAPI extends ApiService {
     return this.delete<void>(`/${id}`);
   }
 
-  // ✅ Endpoint especial que SÍ existe en backend
   async completeWithReceipt(
     id: number, 
     data: { paymentMethod?: string; additionalNotes?: string }
@@ -309,7 +321,7 @@ export class SaleAPI extends ApiService {
   }
 }
 
-// Sale Detail API - ✅ NUEVO - Faltaba en api.ts anterior
+// Sale Detail API
 export class SaleDetailAPI extends ApiService {
   constructor() {
     super('/sale-details');
@@ -336,7 +348,7 @@ export class SaleDetailAPI extends ApiService {
   }
 }
 
-// User API - ✅ Solo endpoints que existen en backend
+// User API
 export class UserAPI extends ApiService {
   constructor() {
     super('/users');
@@ -363,7 +375,7 @@ export class UserAPI extends ApiService {
   }
 }
 
-// Product Batch API - ✅ Solo endpoints que existen en backend
+// Product Batch API
 export class ProductBatchAPI extends ApiService {
   constructor() {
     super('/product-batches');
@@ -390,10 +402,11 @@ export class ProductBatchAPI extends ApiService {
   }
 }
 
-// Inventory Movement API - ✅ Solo endpoints que existen en backend
+// ✅ CORREGIDO: Inventory Movement API con logging detallado
 export class InventoryMovementAPI extends ApiService {
   constructor() {
     super('/inventory-movements');
+    console.log('📦 InventoryMovementAPI initialized');
   }
 
   async getAllMovements(): Promise<InventoryMovementResponse[]> {
@@ -405,6 +418,13 @@ export class InventoryMovementAPI extends ApiService {
   }
 
   async createMovement(movement: InventoryMovementRequest): Promise<InventoryMovementResponse> {
+    console.log('📤 Creating inventory movement:', movement);
+    
+    // ✅ VALIDACIÓN: Verificar que el userId no sea 0
+    if (!movement.userId || movement.userId === 0) {
+      throw new ApiError('ID de usuario es requerido y debe ser válido', 400);
+    }
+    
     return this.post<InventoryMovementResponse>('', movement);
   }
 
@@ -417,7 +437,7 @@ export class InventoryMovementAPI extends ApiService {
   }
 }
 
-// Product Store API - ✅ Solo endpoints que existen en backend
+// Product Store API
 export class ProductStoreAPI extends ApiService {
   constructor() {
     super('/product-stores');
@@ -444,7 +464,7 @@ export class ProductStoreAPI extends ApiService {
   }
 }
 
-// User Activity API - ✅ NUEVO - Faltaba en api.ts anterior
+// User Activity API
 export class UserActivityAPI extends ApiService {
   constructor() {
     super('/user-activities');
@@ -471,7 +491,7 @@ export class UserActivityAPI extends ApiService {
   }
 }
 
-// Receipt API - ✅ NUEVO - Faltaba en api.ts anterior  
+// Receipt API
 export class ReceiptAPI extends ApiService {
   constructor() {
     super('/receipts');
@@ -498,7 +518,7 @@ export class ReceiptAPI extends ApiService {
   }
 }
 
-// Health/Info API - ✅ NUEVO - Endpoints de salud que existen
+// Health/Info API
 export class HealthAPI extends ApiService {
   constructor() {
     super('');
@@ -513,17 +533,150 @@ export class HealthAPI extends ApiService {
   }
 }
 
-// Export API instances (eliminado DashboardAPI que no existe)
+// Reports API
+export class ReportsAPI extends ApiService {
+  constructor() {
+    super('/reports');
+  }
+
+  async getSalesReport(
+    startDate: string,
+    endDate: string,
+    storeIds?: number[]
+  ): Promise<SalesReportResponse> {
+    const params = new URLSearchParams({
+      startDate,
+      endDate
+    });
+    
+    if (storeIds && storeIds.length > 0) {
+      storeIds.forEach(id => params.append('storeIds', id.toString()));
+    }
+
+    return this.get<SalesReportResponse>(`/sales?${params.toString()}`);
+  }
+
+  async getInventoryReport(
+    storeIds?: number[],
+    categoryIds?: number[]
+  ): Promise<InventoryReportResponse> {
+    const params = new URLSearchParams();
+    
+    if (storeIds && storeIds.length > 0) {
+      storeIds.forEach(id => params.append('storeIds', id.toString()));
+    }
+    
+    if (categoryIds && categoryIds.length > 0) {
+      categoryIds.forEach(id => params.append('categoryIds', id.toString()));
+    }
+
+    const queryString = params.toString();
+    return this.get<InventoryReportResponse>(`/inventory${queryString ? '?' + queryString : ''}`);
+  }
+
+  async getProfitabilityReport(
+    startDate: string,
+    endDate: string,
+    storeIds?: number[],
+    categoryIds?: number[]
+  ): Promise<ProfitabilityReportResponse> {
+    const params = new URLSearchParams({
+      startDate,
+      endDate
+    });
+    
+    if (storeIds && storeIds.length > 0) {
+      storeIds.forEach(id => params.append('storeIds', id.toString()));
+    }
+    
+    if (categoryIds && categoryIds.length > 0) {
+      categoryIds.forEach(id => params.append('categoryIds', id.toString()));
+    }
+
+    return this.get<ProfitabilityReportResponse>(`/profitability?${params.toString()}`);
+  }
+
+  async getBestSellingProductsReport(
+    startDate: string,
+    endDate: string,
+    limit: number = 20,
+    storeIds?: number[],
+    categoryIds?: number[]
+  ): Promise<BestSellingProductsReportResponse> {
+    const params = new URLSearchParams({
+      startDate,
+      endDate,
+      limit: limit.toString()
+    });
+    
+    if (storeIds && storeIds.length > 0) {
+      storeIds.forEach(id => params.append('storeIds', id.toString()));
+    }
+    
+    if (categoryIds && categoryIds.length > 0) {
+      categoryIds.forEach(id => params.append('categoryIds', id.toString()));
+    }
+
+    return this.get<BestSellingProductsReportResponse>(`/best-selling-products?${params.toString()}`);
+  }
+
+  async getTraceabilityReportByBatch(batchCode: string): Promise<TraceabilityReportResponse> {
+    return this.get<TraceabilityReportResponse>(`/traceability/batch/${encodeURIComponent(batchCode)}`);
+  }
+
+  async getTraceabilityReportByProduct(
+    productId: number,
+    startDate?: string,
+    endDate?: string
+  ): Promise<TraceabilityReportResponse[]> {
+    const params = new URLSearchParams();
+    
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const queryString = params.toString();
+    return this.get<TraceabilityReportResponse[]>(
+      `/traceability/product/${productId}${queryString ? '?' + queryString : ''}`
+    );
+  }
+
+  async getExecutiveDashboard(
+    startDate: string,
+    endDate: string
+  ): Promise<ExecutiveDashboardResponse> {
+    const params = new URLSearchParams({
+      startDate,
+      endDate
+    });
+
+    return this.get<ExecutiveDashboardResponse>(`/executive-dashboard?${params.toString()}`);
+  }
+
+  async getSalesSummary(days: number = 30): Promise<any> {
+    return this.get<any>(`/summary/sales?days=${days}`);
+  }
+
+  async getAvailablePeriods(): Promise<string[]> {
+    return this.get<string[]>('/periods');
+  }
+
+  async getReportFilters(): Promise<Record<string, any>> {
+    return this.get<Record<string, any>>('/filters');
+  }
+}
+
+// Export API instances
 export const categoryAPI = new CategoryAPI();
 export const productAPI = new ProductAPI();
 export const storeAPI = new StoreAPI();
 export const clientAPI = new ClientAPI();
 export const saleAPI = new SaleAPI();
-export const saleDetailAPI = new SaleDetailAPI(); // ✅ NUEVO
+export const saleDetailAPI = new SaleDetailAPI();
 export const userAPI = new UserAPI();
 export const productBatchAPI = new ProductBatchAPI();
 export const inventoryMovementAPI = new InventoryMovementAPI();
 export const productStoreAPI = new ProductStoreAPI();
-export const userActivityAPI = new UserActivityAPI(); // ✅ NUEVO
-export const receiptAPI = new ReceiptAPI(); // ✅ NUEVO
-export const healthAPI = new HealthAPI(); // ✅ NUEVO
+export const userActivityAPI = new UserActivityAPI();
+export const receiptAPI = new ReceiptAPI();
+export const healthAPI = new HealthAPI();
+export const reportsAPI = new ReportsAPI();

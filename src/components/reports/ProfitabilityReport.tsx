@@ -1,4 +1,4 @@
-// src/components/reports/ProfitabilityReport.tsx
+// src/components/reports/ProfitabilityReport.tsx (ACTUALIZADO - USAR REPORTS API)
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -12,12 +12,13 @@ import { Alert } from '@/components/ui/Alert';
 import { Tabs } from '@/components/ui/Tabs';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { formatters } from '@/utils/formatters';
-import { ProfitabilityReportData, ReportProps, ReportFilters } from '@/types/reports';
-import { SaleResponse, SaleDetailResponse, ProductResponse, StoreResponse, CategoryResponse } from '@/types';
-import { saleAPI, saleDetailAPI, productAPI, storeAPI, categoryAPI } from '@/services/api';
+import { ReportProps, ReportFilters } from '@/types/reports';
+import { ProfitabilityReportResponse, StoreResponse, CategoryResponse } from '@/types';
+import { storeAPI, categoryAPI } from '@/services/api';
+import { reportsService } from '@/services/reportsService';
 
 interface ProfitabilityReportState {
-  data: ProfitabilityReportData | null;
+  data: ProfitabilityReportResponse | null;
   loading: boolean;
   error: string | null;
   filters: ReportFilters;
@@ -35,20 +36,17 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
   });
 
   const [stores, setStores] = useState<StoreResponse[]>([]);
-  const [products, setProducts] = useState<ProductResponse[]>([]);
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
 
   // Cargar datos iniciales
   useEffect(() => {
     const loadInitialData = async (): Promise<void> => {
       try {
-        const [storesData, productsData, categoriesData] = await Promise.all([
+        const [storesData, categoriesData] = await Promise.all([
           storeAPI.getAllStores(),
-          productAPI.getAllProducts(),
           categoryAPI.getAllCategories()
         ]);
         setStores(storesData);
-        setProducts(productsData);
         setCategories(categoriesData);
       } catch (error) {
         console.error('Error loading initial data:', error);
@@ -58,125 +56,17 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
     loadInitialData();
   }, []);
 
+  // ✅ NUEVO: Usar endpoint directo de reports
   const generateReport = useCallback(async (): Promise<void> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      // Obtener ventas y detalles
-      const [sales, saleDetails] = await Promise.all([
-        saleAPI.getAllSales(),
-        saleDetailAPI.getAllSaleDetails()
-      ]);
-
-      // Filtrar ventas por período
-      const filteredSales = sales.filter((sale: SaleResponse) => {
-        if (!sale.createdAt) return false; // o asigna fallback:
-const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('T')[0] : '';
-
-        const startDate = state.filters.startDate;
-        const endDate = state.filters.endDate;
-        
-        return (!startDate || saleDate >= startDate) && 
-               (!endDate || saleDate <= endDate) &&
-               (!state.filters.storeId || sale.store.id === state.filters.storeId) &&
-               (!state.filters.categoryId || 
-                saleDetails.some((detail: SaleDetailResponse) => 
-                  detail.sale.id === sale.id && 
-                  detail.product.category.id === state.filters.categoryId));
-      });
-
-      // Calcular totales generales
-      const totalRevenue = filteredSales.reduce((sum: number, sale: SaleResponse) => sum + sale.totalAmount, 0);
-
-      // Calcular costos totales basados en los detalles de venta
-      let totalCosts = 0;
-      const productProfitability = new Map<number, {
-        name: string;
-        category: string;
-        revenue: number;
-        costs: number;
-        unitsSold: number;
-      }>();
-
-      const storeProfitability = new Map<number, {
-        name: string;
-        revenue: number;
-        costs: number;
-      }>();
-
-      // Procesar cada detalle de venta
-      saleDetails.forEach((detail: SaleDetailResponse) => {
-        const saleInPeriod = filteredSales.find((sale: SaleResponse) => sale.id === detail.sale.id);
-        if (!saleInPeriod) return;
-
-        const product = products.find((p: ProductResponse) => p.id === detail.product.id);
-        if (!product) return;
-
-        const detailRevenue = detail.subtotal;
-        const detailCost = detail.quantity * product.productionCost;
-        totalCosts += detailCost;
-
-        // Rentabilidad por producto
-        const productId = detail.product.id;
-        const existingProduct = productProfitability.get(productId) || {
-          name: product.nameProduct,
-          category: product.category.name,
-          revenue: 0,
-          costs: 0,
-          unitsSold: 0
-        };
-        existingProduct.revenue += detailRevenue;
-        existingProduct.costs += detailCost;
-        existingProduct.unitsSold += detail.quantity;
-        productProfitability.set(productId, existingProduct);
-
-        // Rentabilidad por tienda
-        const storeId = saleInPeriod.store.id;
-        const existingStore = storeProfitability.get(storeId) || {
-          name: saleInPeriod.store.name,
-          revenue: 0,
-          costs: 0
-        };
-        existingStore.revenue += detailRevenue;
-        existingStore.costs += detailCost;
-        storeProfitability.set(storeId, existingStore);
-      });
-
-      const grossProfit = totalRevenue - totalCosts;
-      const profitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
-
-      // Convertir mapas a arrays con cálculos
-      const profitabilityByProduct = Array.from(productProfitability.values())
-        .map(item => ({
-          ...item,
-          profit: item.revenue - item.costs,
-          margin: item.revenue > 0 ? ((item.revenue - item.costs) / item.revenue) * 100 : 0
-        }))
-        .sort((a, b) => b.profit - a.profit);
-
-      const profitabilityByStore = Array.from(storeProfitability.values())
-        .map(item => ({
-          ...item,
-          profit: item.revenue - item.costs,
-          margin: item.revenue > 0 ? ((item.revenue - item.costs) / item.revenue) * 100 : 0
-        }))
-        .sort((a, b) => b.profit - a.profit);
-
-      const reportData: ProfitabilityReportData = {
-        totalRevenue,
-        totalCosts,
-        grossProfit,
-        profitMargin,
-        profitabilityByProduct,
-        profitabilityByStore
-      };
-
+      const report = await reportsService.generateProfitabilityReport(state.filters);
       setState(prev => ({ 
         ...prev, 
-        data: reportData, 
+        data: report, 
         loading: false 
       }));
-
     } catch (error) {
       setState(prev => ({ 
         ...prev, 
@@ -184,7 +74,7 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
         loading: false 
       }));
     }
-  }, [state.filters, products]);
+  }, [state.filters]);
 
   const handleFilterChange = (key: keyof ReportFilters, value: string): void => {
     setState(prev => ({
@@ -210,9 +100,9 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
       `Margen de Utilidad,${formatters.percentage(state.data.profitMargin)}`,
       '',
       'Rentabilidad por Producto',
-      'Producto,Categoría,Ingresos,Costos,Utilidad,Margen,Unidades Vendidas',
+      'Producto,Ingresos,Costos,Utilidad,Margen,Unidades Vendidas',
       ...state.data.profitabilityByProduct.map(item => 
-        `${item.productName},${item.category},${item.revenue},${item.costs},${item.profit},${item.margin}%,${item.unitsSold}`
+        `${item.productName},${item.revenue},${item.costs},${item.profit},${item.margin}%,${item.unitsSold}`
       ),
       '',
       'Rentabilidad por Tienda',
@@ -264,7 +154,6 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
 
   const productColumns = [
     { key: 'productName', header: 'Producto' },
-    { key: 'category', header: 'Categoría' },
     { 
       key: 'revenue', 
       header: 'Ingresos',
@@ -463,16 +352,16 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
               }))
             ]}
           />
-          <div className="flex items-end gap-2">
-            <Button onClick={generateReport} isLoading={state.loading}>
-              Generar Reporte
+        </div>
+        <div className="flex items-center gap-2 mt-4">
+          <Button onClick={generateReport} isLoading={state.loading}>
+            Generar Reporte
+          </Button>
+          {state.data && (
+            <Button variant="outline" onClick={handleExport}>
+              Exportar CSV
             </Button>
-            {state.data && (
-              <Button variant="outline" onClick={handleExport}>
-                Exportar CSV
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       </Card>
 

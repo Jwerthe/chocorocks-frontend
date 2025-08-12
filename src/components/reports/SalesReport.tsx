@@ -1,4 +1,4 @@
-// src/components/reports/SalesReport.tsx
+// src/components/reports/SalesReport.tsx (ACTUALIZADO - USAR REPORTS API)
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -11,12 +11,13 @@ import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
 import { Tabs } from '@/components/ui/Tabs';
 import { formatters } from '@/utils/formatters';
-import { SalesReportData, ReportProps, ReportFilters } from '@/types/reports';
-import { SaleResponse, SaleDetailResponse, ProductResponse, StoreResponse } from '@/types';
-import { saleAPI, saleDetailAPI, productAPI, storeAPI } from '@/services/api';
+import { ReportProps, ReportFilters } from '@/types/reports';
+import { SalesReportResponse, StoreResponse } from '@/types';
+import { storeAPI } from '@/services/api';
+import { reportsService } from '@/services/reportsService';
 
 interface SalesReportState {
-  data: SalesReportData | null;
+  data: SalesReportResponse | null;
   loading: boolean;
   error: string | null;
   filters: ReportFilters;
@@ -28,127 +29,38 @@ export const SalesReport: React.FC<ReportProps> = ({ onClose }) => {
     loading: false,
     error: null,
     filters: {
-      startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 días atrás
-      endDate: new Date().toISOString().split('T')[0], // Hoy
+      startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      endDate: new Date().toISOString().split('T')[0],
     }
   });
 
   const [stores, setStores] = useState<StoreResponse[]>([]);
-  const [products, setProducts] = useState<ProductResponse[]>([]);
 
-  // Cargar datos iniciales
+  // Cargar tiendas al montar
   useEffect(() => {
-    const loadInitialData = async (): Promise<void> => {
+    const loadStores = async (): Promise<void> => {
       try {
-        const [storesData, productsData] = await Promise.all([
-          storeAPI.getAllStores(),
-          productAPI.getAllProducts()
-        ]);
+        const storesData = await storeAPI.getAllStores();
         setStores(storesData);
-        setProducts(productsData);
       } catch (error) {
-        console.error('Error loading initial data:', error);
+        console.error('Error loading stores:', error);
       }
     };
 
-    loadInitialData();
+    loadStores();
   }, []);
 
+  // ✅ NUEVO: Usar endpoint directo de reports
   const generateReport = useCallback(async (): Promise<void> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      // Obtener todas las ventas y detalles
-      const [sales, saleDetails] = await Promise.all([
-        saleAPI.getAllSales(),
-        saleDetailAPI.getAllSaleDetails()
-      ]);
-
-      // Filtrar ventas por fecha
-      const filteredSales = sales.filter((sale: SaleResponse) => {
-        if (!sale.createdAt) return false; // o asigna fallback:
-const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('T')[0] : '';
-
-        const startDate = state.filters.startDate;
-        const endDate = state.filters.endDate;
-        
-        return (!startDate || saleDate >= startDate) && 
-               (!endDate || saleDate <= endDate) &&
-               (!state.filters.storeId || sale.store.id === state.filters.storeId);
-      });
-
-      // Procesar datos para el reporte
-      const totalSales = filteredSales.length;
-      const totalRevenue = filteredSales.reduce((sum: number, sale: SaleResponse) => sum + sale.totalAmount, 0);
-      const averageTicket = totalSales > 0 ? totalRevenue / totalSales : 0;
-
-      // Ventas por tienda
-      const salesByStore = stores.map((store: StoreResponse) => {
-        const storeSales = filteredSales.filter((sale: SaleResponse) => sale.store.id === store.id);
-        return {
-          storeName: store.name,
-          salesCount: storeSales.length,
-          revenue: storeSales.reduce((sum: number, sale: SaleResponse) => sum + sale.totalAmount, 0)
-        };
-      }).filter(item => item.salesCount > 0);
-
-      // Ventas por producto
-      const productSalesMap = new Map<number, { name: string; quantity: number; revenue: number }>();
-      
-      saleDetails.forEach((detail: SaleDetailResponse) => {
-        const saleInPeriod = filteredSales.find((sale: SaleResponse) => sale.id === detail.sale.id);
-        if (saleInPeriod) {
-          const productId = detail.product.id;
-          const existing = productSalesMap.get(productId) || { 
-            name: detail.product.nameProduct, 
-            quantity: 0, 
-            revenue: 0 
-          };
-          existing.quantity += detail.quantity;
-          existing.revenue += detail.subtotal;
-          productSalesMap.set(productId, existing);
-        }
-      });
-
-      const salesByProduct = Array.from(productSalesMap.values())
-        .map(item => ({
-          productName: item.name,
-          quantitySold: item.quantity,
-          revenue: item.revenue
-        }))
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 10); // Top 10
-
-      // Ventas diarias
-      const dailySalesMap = new Map<string, { sales: number; revenue: number }>();
-      filteredSales.forEach((sale: SaleResponse) => {
-        const date = new Date(sale.createdAt).toISOString().split('T')[0];
-        const existing = dailySalesMap.get(date) || { sales: 0, revenue: 0 };
-        existing.sales += 1;
-        existing.revenue += sale.totalAmount;
-        dailySalesMap.set(date, existing);
-      });
-
-      const dailySales = Array.from(dailySalesMap.entries())
-        .map(([date, data]) => ({ date, ...data }))
-        .sort((a, b) => a.date.localeCompare(b.date));
-
-      const reportData: SalesReportData = {
-        period: `${state.filters.startDate} - ${state.filters.endDate}`,
-        totalSales,
-        totalRevenue,
-        averageTicket,
-        salesByStore,
-        salesByProduct,
-        dailySales
-      };
-
+      const report = await reportsService.generateSalesReport(state.filters);
       setState(prev => ({ 
         ...prev, 
-        data: reportData, 
+        data: report, 
         loading: false 
       }));
-
     } catch (error) {
       setState(prev => ({ 
         ...prev, 
@@ -156,7 +68,7 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
         loading: false 
       }));
     }
-  }, [state.filters, stores]);
+  }, [state.filters]);
 
   const handleFilterChange = (key: keyof ReportFilters, value: string): void => {
     setState(prev => ({
@@ -171,33 +83,9 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
   const handleExport = (): void => {
     if (!state.data) return;
 
-    const csvContent = [
-      'Reporte de Ventas',
-      `Período: ${state.data.period}`,
-      '',
-      'Resumen General',
-      `Total Ventas,${state.data.totalSales}`,
-      `Total Ingresos,${formatters.currency(state.data.totalRevenue)}`,
-      `Ticket Promedio,${formatters.currency(state.data.averageTicket)}`,
-      '',
-      'Ventas por Tienda',
-      'Tienda,Cantidad Ventas,Ingresos',
-      ...state.data.salesByStore.map(item => 
-        `${item.storeName},${item.salesCount},${item.revenue}`
-      ),
-      '',
-      'Productos Más Vendidos',
-      'Producto,Cantidad,Ingresos',
-      ...state.data.salesByProduct.map(item => 
-        `${item.productName},${item.quantitySold},${item.revenue}`
-      )
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `reporte-ventas-${Date.now()}.csv`;
-    link.click();
+    // ✅ USAR: Helper del reportsService
+    const csvData = reportsService.formatSalesReportForCSV(state.data);
+    reportsService.exportToCSV(csvData, 'reporte-ventas');
   };
 
   const summaryCards = state.data ? [

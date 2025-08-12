@@ -1,4 +1,4 @@
-// src/components/reports/TraceabilityReport.tsx
+// src/components/reports/TraceabilityReport.tsx (ACTUALIZADO - USAR REPORTS API)
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -14,24 +14,13 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { formatters } from '@/utils/formatters';
-import { TraceabilityReportData, ReportProps } from '@/types/reports';
-import { 
-  ProductBatchResponse, 
-  InventoryMovementResponse, 
-  SaleDetailResponse,
-  ProductResponse,
-  StoreResponse 
-} from '@/types';
-import { 
-  productBatchAPI, 
-  inventoryMovementAPI, 
-  saleDetailAPI,
-  productAPI,
-  storeAPI 
-} from '@/services/api';
+import { ReportProps } from '@/types/reports';
+import { TraceabilityReportResponse, ProductResponse, ProductBatchResponse } from '@/types';
+import { productAPI, productBatchAPI } from '@/services/api';
+import { reportsService } from '@/services/reportsService';
 
 interface TraceabilityReportState {
-  data: TraceabilityReportData | null;
+  data: TraceabilityReportResponse | null;
   loading: boolean;
   error: string | null;
   searchBatchCode: string;
@@ -48,20 +37,17 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
   });
 
   const [products, setProducts] = useState<ProductResponse[]>([]);
-  const [stores, setStores] = useState<StoreResponse[]>([]);
   const [batches, setBatches] = useState<ProductBatchResponse[]>([]);
 
   // Cargar datos iniciales
   useEffect(() => {
     const loadInitialData = async (): Promise<void> => {
       try {
-        const [productsData, storesData, batchesData] = await Promise.all([
+        const [productsData, batchesData] = await Promise.all([
           productAPI.getAllProducts(),
-          storeAPI.getAllStores(),
           productBatchAPI.getAllBatches()
         ]);
         setProducts(productsData);
-        setStores(storesData);
         setBatches(batchesData);
       } catch (error) {
         console.error('Error loading initial data:', error);
@@ -71,6 +57,7 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
     loadInitialData();
   }, []);
 
+  // ✅ NUEVO: Usar endpoint directo de reports
   const generateReport = useCallback(async (batchCode?: string): Promise<void> => {
     const searchCode = batchCode || state.searchBatchCode;
     
@@ -85,95 +72,13 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      // Obtener datos de movimientos, detalles de venta y lotes
-      const [inventoryMovements, saleDetails, allBatches] = await Promise.all([
-        inventoryMovementAPI.getAllMovements(),
-        saleDetailAPI.getAllSaleDetails(),
-        productBatchAPI.getAllBatches()
-      ]);
-
-      // Buscar el lote específico
-      const targetBatch = allBatches.find((batch: ProductBatchResponse) => 
-        batch.batchCode.toLowerCase().includes(searchCode.toLowerCase())
-      );
-
-      if (!targetBatch) {
-        setState(prev => ({ 
-          ...prev, 
-          error: `No se encontró ningún lote con el código "${searchCode}"`,
-          loading: false 
-        }));
-        return;
-      }
-
-      // Filtrar movimientos relacionados con este lote
-      const relatedMovements = inventoryMovements
-        .filter((movement: InventoryMovementResponse) => 
-          movement.batch && movement.batch.id === targetBatch.id
-        )
-        .map((movement: InventoryMovementResponse) => ({
-          id: movement.id,
-          movementType: movement.movementType,
-          quantity: movement.quantity,
-          reason: movement.reason,
-          movementDate: movement.movementDate,
-          fromStore: movement.fromStore?.name,
-          toStore: movement.toStore?.name,
-          userName: movement.user.name,
-          notes: movement.notes || ''
-        }))
-        .sort((a, b) => new Date(a.movementDate).getTime() - new Date(b.movementDate).getTime());
-
-      // Filtrar ventas relacionadas con este lote
-      const relatedSales = saleDetails
-        .filter((detail: SaleDetailResponse) => 
-          detail.batch && detail.batch.id === targetBatch.id
-        )
-        .map((detail: SaleDetailResponse) => ({
-          saleNumber: detail.sale.saleNumber,
-          date: detail.sale.createdAt,
-          quantity: detail.quantity,
-          unitPrice: detail.unitPrice,
-          subtotal: detail.subtotal,
-          storeName: detail.sale.store.name,
-          clientName: detail.sale.client?.nameLastname
-        }))
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-      // Calcular resumen
-      const totalProduced = targetBatch.initialQuantity;
-      const totalSold = relatedSales.reduce((sum, sale) => sum + sale.quantity, 0);
-      const totalMoved = relatedMovements
-        .filter(movement => movement.movementType === 'TRANSFER')
-        .reduce((sum, movement) => sum + movement.quantity, 0);
-      const remaining = targetBatch.currentQuantity;
-
-      const reportData: TraceabilityReportData = {
-        batchInfo: {
-          batchCode: targetBatch.batchCode,
-          productName: targetBatch.product.nameProduct,
-          productionDate: targetBatch.productionDate,
-          expirationDate: targetBatch.expirationDate,
-          initialQuantity: targetBatch.initialQuantity,
-          currentQuantity: targetBatch.currentQuantity
-        },
-        movements: relatedMovements,
-        sales: relatedSales,
-        summary: {
-          totalProduced,
-          totalSold,
-          totalMoved,
-          remaining
-        }
-      };
-
+      const report = await reportsService.generateTraceabilityReport(searchCode);
       setState(prev => ({ 
         ...prev, 
-        data: reportData, 
+        data: report, 
         loading: false,
-        searchBatchCode: targetBatch.batchCode // Actualizar con el código exacto encontrado
+        searchBatchCode: searchCode // Actualizar con el código usado
       }));
-
     } catch (error) {
       setState(prev => ({ 
         ...prev, 

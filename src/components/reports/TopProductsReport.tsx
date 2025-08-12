@@ -1,4 +1,4 @@
-// src/components/reports/TopProductsReport.tsx
+// src/components/reports/TopProductsReport.tsx (ACTUALIZADO - USAR REPORTS API)
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -12,12 +12,13 @@ import { Alert } from '@/components/ui/Alert';
 import { Tabs } from '@/components/ui/Tabs';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { formatters } from '@/utils/formatters';
-import { TopProductsReportData, ReportProps, ReportFilters } from '@/types/reports';
-import { SaleResponse, SaleDetailResponse, ProductResponse, StoreResponse, CategoryResponse } from '@/types';
-import { saleAPI, saleDetailAPI, productAPI, storeAPI, categoryAPI } from '@/services/api';
+import { ReportProps, ReportFilters } from '@/types/reports';
+import { BestSellingProductsReportResponse, StoreResponse, CategoryResponse } from '@/types';
+import { storeAPI, categoryAPI } from '@/services/api';
+import { reportsService } from '@/services/reportsService';
 
 interface TopProductsReportState {
-  data: TopProductsReportData | null;
+  data: BestSellingProductsReportResponse | null;
   loading: boolean;
   error: string | null;
   filters: ReportFilters;
@@ -37,20 +38,17 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
   });
 
   const [stores, setStores] = useState<StoreResponse[]>([]);
-  const [products, setProducts] = useState<ProductResponse[]>([]);
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
 
   // Cargar datos iniciales
   useEffect(() => {
     const loadInitialData = async (): Promise<void> => {
       try {
-        const [storesData, productsData, categoriesData] = await Promise.all([
+        const [storesData, categoriesData] = await Promise.all([
           storeAPI.getAllStores(),
-          productAPI.getAllProducts(),
           categoryAPI.getAllCategories()
         ]);
         setStores(storesData);
-        setProducts(productsData);
         setCategories(categoriesData);
       } catch (error) {
         console.error('Error loading initial data:', error);
@@ -60,119 +58,17 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
     loadInitialData();
   }, []);
 
+  // ✅ NUEVO: Usar endpoint directo de reports
   const generateReport = useCallback(async (): Promise<void> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      // Obtener ventas y detalles
-      const [sales, saleDetails] = await Promise.all([
-        saleAPI.getAllSales(),
-        saleDetailAPI.getAllSaleDetails()
-      ]);
-
-      // Filtrar ventas por período
-      const filteredSales = sales.filter((sale: SaleResponse) => {
-        if (!sale.createdAt) return false; // o asigna fallback:
-const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('T')[0] : '';
-
-        const startDate = state.filters.startDate;
-        const endDate = state.filters.endDate;
-        
-        return (!startDate || saleDate >= startDate) && 
-               (!endDate || saleDate <= endDate) &&
-               (!state.filters.storeId || sale.store.id === state.filters.storeId);
-      });
-
-      const filteredSaleIds = new Set(filteredSales.map((sale: SaleResponse) => sale.id));
-
-      // Filtrar detalles de venta correspondientes
-      const filteredSaleDetails = saleDetails.filter((detail: SaleDetailResponse) => 
-        filteredSaleIds.has(detail.sale.id) &&
-        (!state.filters.categoryId || detail.product.category.id === state.filters.categoryId)
-      );
-
-      // Agrupar por producto
-      const productSalesMap = new Map<number, {
-        product: ProductResponse;
-        totalQuantitySold: number;
-        totalRevenue: number;
-        salesCount: number;
-        totalValue: number;
-      }>();
-
-      filteredSaleDetails.forEach((detail: SaleDetailResponse) => {
-        const productId = detail.product.id;
-        const existing = productSalesMap.get(productId) || {
-          product: detail.product,
-          totalQuantitySold: 0,
-          totalRevenue: 0,
-          salesCount: 0,
-          totalValue: 0
-        };
-
-        existing.totalQuantitySold += detail.quantity;
-        existing.totalRevenue += detail.subtotal;
-        existing.salesCount += 1;
-        existing.totalValue += detail.subtotal;
-
-        productSalesMap.set(productId, existing);
-      });
-
-      // Convertir a array y ordenar por cantidad vendida
-      const productSales = Array.from(productSalesMap.values())
-        .sort((a, b) => b.totalQuantitySold - a.totalQuantitySold)
-        .slice(0, state.topCount);
-
-      // Crear ranking de productos
-      const topProducts = productSales.map((item, index) => ({
-        productName: item.product.nameProduct,
-        category: item.product.category.name,
-        totalQuantitySold: item.totalQuantitySold,
-        totalRevenue: item.totalRevenue,
-        salesCount: item.salesCount,
-        averagePrice: item.totalRevenue / Math.max(item.totalQuantitySold, 1),
-        rank: index + 1
-      }));
-
-      // Rendimiento por categoría
-      const categoryMap = new Map<number, {
-        categoryName: string;
-        totalQuantitySold: number;
-        totalRevenue: number;
-        productsCount: number;
-      }>();
-
-      productSales.forEach((item) => {
-        const categoryId = item.product.category.id;
-        const existing = categoryMap.get(categoryId) || {
-          categoryName: item.product.category.name,
-          totalQuantitySold: 0,
-          totalRevenue: 0,
-          productsCount: 0
-        };
-
-        existing.totalQuantitySold += item.totalQuantitySold;
-        existing.totalRevenue += item.totalRevenue;
-        existing.productsCount += 1;
-
-        categoryMap.set(categoryId, existing);
-      });
-
-      const categoryPerformance = Array.from(categoryMap.values())
-        .sort((a, b) => b.totalQuantitySold - a.totalQuantitySold);
-
-      const reportData: TopProductsReportData = {
-        reportPeriod: `${state.filters.startDate} - ${state.filters.endDate}`,
-        topProducts,
-        categoryPerformance
-      };
-
+      const report = await reportsService.generateTopProductsReport(state.filters, state.topCount);
       setState(prev => ({ 
         ...prev, 
-        data: reportData, 
+        data: report, 
         loading: false 
       }));
-
     } catch (error) {
       setState(prev => ({ 
         ...prev, 
@@ -204,18 +100,12 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
 
     const csvContent = [
       'Reporte de Productos Más Vendidos',
-      `Período: ${state.data.reportPeriod}`,
+      `Período: ${state.data.period}`,
       '',
       'Top Productos',
-      'Ranking,Producto,Categoría,Cantidad Vendida,Ingresos,Ventas,Precio Promedio',
-      ...state.data.topProducts.map(item => 
-        `${item.rank},${item.productName},${item.category},${item.totalQuantitySold},${item.totalRevenue},${item.salesCount},${item.averagePrice}`
-      ),
-      '',
-      'Rendimiento por Categoría',
-      'Categoría,Cantidad Total,Ingresos Totales,Productos',
-      ...state.data.categoryPerformance.map(item => 
-        `${item.categoryName},${item.totalQuantitySold},${item.totalRevenue},${item.productsCount}`
+      'Ranking,Producto,Código,Categoría,Cantidad Vendida,Ingresos,Ventas,Precio Promedio,Participación',
+      ...state.data.products.map(item => 
+        `${item.rank},${item.productName},${item.productCode},${item.categoryName},${item.quantitySold},${item.revenue},${item.salesCount},${item.averagePrice},${item.marketShare}%`
       )
     ].join('\n');
 
@@ -243,14 +133,15 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
       )
     },
     { key: 'productName', header: 'Producto' },
-    { key: 'category', header: 'Categoría' },
+    { key: 'productCode', header: 'Código' },
+    { key: 'categoryName', header: 'Categoría' },
     { 
-      key: 'totalQuantitySold', 
+      key: 'quantitySold', 
       header: 'Cantidad Vendida',
       render: (value: number) => formatters.number(value)
     },
     { 
-      key: 'totalRevenue', 
+      key: 'revenue', 
       header: 'Ingresos',
       render: (value: number) => formatters.currency(value)
     },
@@ -259,8 +150,38 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
       key: 'averagePrice', 
       header: 'Precio Promedio',
       render: (value: number) => formatters.currency(value)
+    },
+    { 
+      key: 'marketShare', 
+      header: 'Participación',
+      render: (value: number) => formatters.percentage(value)
     }
   ];
+
+  // Crear datos para análisis por categoría
+  const categoryPerformance = state.data ? 
+    state.data.products.reduce((acc, product) => {
+      const category = acc.find(c => c.categoryName === product.categoryName);
+      if (category) {
+        category.totalQuantitySold += product.quantitySold;
+        category.totalRevenue += product.revenue;
+        category.productsCount += 1;
+      } else {
+        acc.push({
+          categoryName: product.categoryName,
+          totalQuantitySold: product.quantitySold,
+          totalRevenue: product.revenue,
+          productsCount: 1
+        });
+      }
+      return acc;
+    }, [] as Array<{
+      categoryName: string;
+      totalQuantitySold: number;
+      totalRevenue: number;
+      productsCount: number;
+    }>).sort((a, b) => b.totalQuantitySold - a.totalQuantitySold)
+    : [];
 
   const categoryColumns = [
     { key: 'categoryName', header: 'Categoría' },
@@ -281,7 +202,7 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
     <div className="space-y-6">
       {/* Top 5 productos destacados */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        {state.data.topProducts.slice(0, 5).map((product, index) => (
+        {state.data.products.slice(0, 5).map((product, index) => (
           <Card key={product.rank} className="text-center">
             <div className="text-2xl mb-2">
               {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏆'}
@@ -290,13 +211,13 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
               #{product.rank}
             </Badge>
             <h4 className="font-bold text-sm mb-1">{product.productName}</h4>
-            <p className="text-xs text-gray-600 mb-2">{product.category}</p>
+            <p className="text-xs text-gray-600 mb-2">{product.categoryName}</p>
             <div className="text-lg font-bold text-[#7ca1eb]">
-              {formatters.number(product.totalQuantitySold)}
+              {formatters.number(product.quantitySold)}
             </div>
             <div className="text-xs text-gray-500">unidades</div>
             <div className="text-sm font-medium mt-1">
-              {formatters.currency(product.totalRevenue)}
+              {formatters.currency(product.revenue)}
             </div>
           </Card>
         ))}
@@ -304,20 +225,20 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
 
       {/* Tabla completa */}
       <Table
-        data={state.data.topProducts}
+        data={state.data.products}
         columns={topProductsColumns}
         emptyMessage="No hay datos de productos vendidos"
       />
     </div>
   ) : null;
 
-  const categoryContent = state.data ? (
+  const categoryContent = categoryPerformance.length > 0 ? (
     <div className="space-y-6">
       {/* Gráfico de barras simple con progress bars */}
       <Card title="Rendimiento Visual por Categoría">
         <div className="space-y-4">
-          {state.data.categoryPerformance.slice(0, 10).map((category, index) => {
-            const maxQuantity = Math.max(...state.data!.categoryPerformance.map(c => c.totalQuantitySold));
+          {categoryPerformance.slice(0, 10).map((category, index) => {
+            const maxQuantity = Math.max(...categoryPerformance.map(c => c.totalQuantitySold));
             const percentage = (category.totalQuantitySold / maxQuantity) * 100;
             
             return (
@@ -341,7 +262,7 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
 
       {/* Tabla de categorías */}
       <Table
-        data={state.data.categoryPerformance}
+        data={categoryPerformance}
         columns={categoryColumns}
         emptyMessage="No hay datos de categorías"
       />
@@ -448,8 +369,9 @@ const saleDate = sale.createdAt ? new Date(sale.createdAt).toISOString().split('
       {state.data && (
         <Alert variant="info">
           <div className="text-center">
-            <strong>Reporte Generado:</strong> {state.data.reportPeriod} | 
-            Top {state.data.topProducts.length} productos más vendidos
+            <strong>Reporte Generado:</strong> {state.data.period} | 
+            Top {state.data.products.length} productos más vendidos | 
+            Total productos vendidos: {formatters.number(state.data.totalProductsSold)}
           </div>
         </Alert>
       )}

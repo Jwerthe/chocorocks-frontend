@@ -18,6 +18,11 @@ import {
 import { inventoryMovementAPI, productAPI, storeAPI, productBatchAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotification } from '@/hooks/useNotification';
+import { 
+  createMovementReasonOptions,
+  createStoreOptions,
+  debugStores 
+} from '@/utils/movement-translations';
 
 interface InventoryMovementFormProps {
   isOpen: boolean;
@@ -28,6 +33,11 @@ interface InventoryMovementFormProps {
 
 interface FormErrors {
   [key: string]: string;
+}
+
+interface SelectOption {
+  value: string | number;
+  label: string;
 }
 
 export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
@@ -49,7 +59,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     reason: MovementReason.SALE,
     referenceId: undefined,
     referenceType: undefined,
-    userId: 1, // Will be updated with actual user ID
+    userId: 1,
     notes: '',
   });
 
@@ -57,10 +67,31 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
   const [stores, setStores] = useState<StoreResponse[]>([]);
   const [batches, setBatches] = useState<ProductBatchResponse[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [loadingStores, setLoadingStores] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [errors, setErrors] = useState<FormErrors>({});
 
+  // ✅ CORREGIDO: Obtener correctamente el userId
+  const getUserId = useCallback((): number => {
+    if (!user) {
+      console.error('❌ No hay usuario logueado');
+      return 0;
+    }
+    
+    const userId = parseInt(user.id);
+    console.log(`👤 Usuario logueado: ID=${userId}, Email=${user.email}, Nombre=${user.name}`);
+    
+    if (isNaN(userId) || userId <= 0) {
+      console.error('❌ ID de usuario inválido:', user.id);
+      return 0;
+    }
+    
+    return userId;
+  }, [user]);
+
   const resetForm = useCallback((): void => {
+    const currentUserId = getUserId();
+    
     setFormData({
       movementType: movementType,
       productId: 0,
@@ -71,44 +102,58 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
       reason: MovementReason.SALE,
       referenceId: undefined,
       referenceType: undefined,
-      userId: user ? parseInt(user.id) : 1,
+      userId: currentUserId,
       notes: '',
     });
+    
     setBatches([]);
     setErrors({});
     setError('');
-  }, [movementType, user]);
+    
+    console.log(`🔄 Formulario reiniciado con userId: ${currentUserId}`);
+  }, [movementType, getUserId]);
 
   const fetchProducts = useCallback(async (): Promise<void> => {
     try {
       const data = await productAPI.getAllProducts();
-      setProducts(data.filter(p => p.isActive));
+      console.log('✅ Productos cargados:', data.length);
+      setProducts(data.filter((p: ProductResponse) => p.isActive));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error al cargar los productos';
       setError(errorMessage);
+      console.error('❌ Error loading products:', err);
     }
   }, []);
 
   const fetchStores = useCallback(async (): Promise<void> => {
+    setLoadingStores(true);
     try {
+      console.log('🔄 Iniciando carga de tiendas...');
       const data = await storeAPI.getAllStores();
-      setStores(data.filter(s => s.isActive));
+      console.log('✅ Tiendas obtenidas del API:', data);
+      
+      setStores(data);
+      debugStores(data, 'InventoryMovementForm');
+      
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error al cargar las tiendas';
       setError(errorMessage);
+      console.error('❌ Error loading stores:', err);
+    } finally {
+      setLoadingStores(false);
     }
   }, []);
 
   const fetchBatchesByProduct = useCallback(async (productId: number): Promise<void> => {
     try {
-      // ✅ Usar solo método que SÍ existe: getAllBatches
       const allBatches = await productBatchAPI.getAllBatches();
-      const productBatches = allBatches.filter(batch => 
+      const productBatches = allBatches.filter((batch: ProductBatchResponse) => 
         batch.product.id === productId && 
         batch.isActive && 
         batch.currentQuantity > 0
       );
       setBatches(productBatches);
+      console.log(`📦 Lotes cargados para producto ${productId}:`, productBatches.length);
     } catch (err) {
       setBatches([]);
       console.error('Error al cargar lotes del producto:', err);
@@ -117,6 +162,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      console.log('🔄 Modal abierto, cargando datos...');
       fetchProducts();
       fetchStores();
       resetForm();
@@ -133,6 +179,12 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
+
+    // ✅ NUEVA VALIDACIÓN: Verificar que hay usuario logueado
+    const currentUserId = getUserId();
+    if (!currentUserId || currentUserId === 0) {
+      newErrors.general = 'Debes estar logueado para realizar esta acción. Por favor, inicia sesión nuevamente.';
+    }
 
     if (!formData.productId || formData.productId === 0) {
       newErrors.productId = 'El producto es requerido';
@@ -156,7 +208,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
 
     // Validar que hay suficiente stock en el lote seleccionado
     if (formData.batchId && movementType === MovementType.OUT) {
-      const selectedBatch = batches.find(b => b.id === formData.batchId);
+      const selectedBatch = batches.find((b: ProductBatchResponse) => b.id === formData.batchId);
       if (selectedBatch && formData.quantity > selectedBatch.currentQuantity) {
         newErrors.quantity = `Solo hay ${selectedBatch.currentQuantity} unidades disponibles en este lote`;
       }
@@ -177,7 +229,21 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     setError('');
 
     try {
-      await inventoryMovementAPI.createMovement(formData);
+      // ✅ CORREGIDO: Asegurar que se envía el userId correcto
+      const currentUserId = getUserId();
+      const movementData: InventoryMovementRequest = {
+        ...formData,
+        userId: currentUserId
+      };
+
+      console.log('📤 Enviando datos del movimiento:', movementData);
+
+      // ✅ NUEVA VALIDACIÓN: Verificar antes de enviar
+      if (!currentUserId || currentUserId === 0) {
+        throw new Error('No se pudo obtener el ID del usuario. Por favor, inicia sesión nuevamente.');
+      }
+
+      await inventoryMovementAPI.createMovement(movementData);
       success('Movimiento de inventario registrado correctamente');
       onSuccess();
       onClose();
@@ -186,43 +252,45 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
       const errorMessage = err instanceof Error ? err.message : 'Error al registrar el movimiento de inventario';
       setError(errorMessage);
       notifyError(errorMessage);
+      console.error('❌ Error al crear movimiento:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInputChange = (field: keyof InventoryMovementRequest, value: string | number | undefined): void => {
+  const handleInputChange = <K extends keyof InventoryMovementRequest>(
+    field: K, 
+    value: InventoryMovementRequest[K]
+  ): void => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
-  const productOptions = [
+  // ✅ MEJORADO: Opciones usando las utilidades
+  const productOptions: SelectOption[] = [
     { value: 0, label: 'Seleccionar producto...' },
-    ...products.map(product => ({ 
+    ...products.map((product: ProductResponse) => ({ 
       value: product.id, 
       label: `${product.nameProduct} - ${product.flavor || 'Sin sabor'} (${product.size || 'Sin tamaño'})` 
     }))
   ];
 
-  const storeOptions = [
-    { value: '', label: 'Seleccionar tienda...' },
-    ...stores.map(store => ({ value: store.id.toString(), label: store.name }))
-  ];
+  const storeOptions: SelectOption[] = React.useMemo(() => {
+    return createStoreOptions(stores, true, 'Seleccionar tienda...', true);
+  }, [stores]);
 
-  const batchOptions = [
+  const batchOptions: SelectOption[] = [
     { value: '', label: 'Sin lote específico' },
-    ...batches.map(batch => ({ 
+    ...batches.map((batch: ProductBatchResponse) => ({ 
       value: batch.id.toString(), 
       label: `${batch.batchCode} (Disponible: ${batch.currentQuantity})` 
     }))
   ];
 
-  const reasonOptions = Object.values(MovementReason).map(reason => ({
-    value: reason,
-    label: reason.charAt(0).toUpperCase() + reason.slice(1).toLowerCase().replace('_', ' ')
-  }));
+  // ✅ MEJORADO: Usar utilidad para motivos en español
+  const reasonOptions: SelectOption[] = createMovementReasonOptions();
 
   const getMovementTitle = (): string => {
     switch (movementType) {
@@ -250,6 +318,10 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     }
   };
 
+  // ✅ NUEVA VALIDACIÓN: Verificar que el usuario esté logueado
+  const currentUserId = getUserId();
+  const isUserValid = currentUserId > 0;
+
   return (
     <Modal
       isOpen={isOpen}
@@ -259,10 +331,35 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert variant="error" onClose={() => setError('')}>{error}</Alert>}
+        {errors.general && <Alert variant="error">{errors.general}</Alert>}
+        
+        {/* ✅ NUEVA ALERTA: Si no hay usuario válido */}
+        {!isUserValid && (
+          <Alert variant="warning">
+            ⚠️ No se pudo obtener tu información de usuario. Por favor, recarga la página o inicia sesión nuevamente.
+          </Alert>
+        )}
         
         <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
           <p className="text-sm text-blue-700">{getMovementDescription()}</p>
+          {user && (
+            <p className="text-xs text-blue-600 mt-1">
+              Usuario: {user.name} ({user.email}) - ID: {currentUserId}
+            </p>
+          )}
         </div>
+
+        {/* Debug info en desarrollo */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="bg-gray-100 p-2 text-xs text-gray-600">
+            <strong>Debug Info:</strong> 
+            User ID: {currentUserId} | 
+            Stores: {stores.length} | 
+            Options: {storeOptions.length - 1} | 
+            Products: {products.length}
+            {loadingStores && <span className="text-blue-600"> (Cargando tiendas...)</span>}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Select
@@ -319,6 +416,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
                 }
                 options={storeOptions}
                 error={errors.fromStoreId}
+                disabled={loadingStores}
               />
 
               <Select
@@ -329,6 +427,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
                 }
                 options={storeOptions}
                 error={errors.toStoreId}
+                disabled={loadingStores}
               />
             </>
           )}
@@ -351,8 +450,9 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
               }}
               options={[
                 { value: '', label: 'Bodega Central' },
-                ...stores.map(store => ({ value: store.id.toString(), label: store.name }))
+                ...storeOptions.filter(option => option.value !== '')
               ]}
+              disabled={loadingStores}
             />
           )}
 
@@ -373,7 +473,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
         {formData.batchId && batches.length > 0 && (
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             {(() => {
-              const selectedBatch = batches.find(b => b.id === formData.batchId);
+              const selectedBatch = batches.find((b: ProductBatchResponse) => b.id === formData.batchId);
               if (selectedBatch) {
                 return (
                   <div>
@@ -416,8 +516,9 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
           <Button
             type="submit"
             isLoading={loading}
+            disabled={loadingStores || !isUserValid}
           >
-            Registrar Movimiento
+            {loadingStores ? 'Cargando...' : 'Registrar Movimiento'}
           </Button>
         </div>
       </form>

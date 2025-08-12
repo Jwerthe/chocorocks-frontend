@@ -1,4 +1,4 @@
-// src/components/reports/ReportsWidgets.tsx
+// components/reports/ReportsWidgets.tsx (ACTUALIZADO - USAR REPORTS API)
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -33,6 +33,7 @@ export const DailySalesWidget: React.FC<DailySalesWidgetProps> = ({ className = 
         const today = new Date().toISOString().split('T')[0];
         const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+        // ✅ USAR: nuevos endpoints de reports
         const [todayData, yesterdayData] = await Promise.all([
           reportsService.generateSalesReport({ startDate: today, endDate: today }),
           reportsService.generateSalesReport({ startDate: yesterday, endDate: yesterday })
@@ -121,6 +122,7 @@ export const InventoryAlertsWidget: React.FC<InventoryAlertsWidgetProps> = ({
     const loadInventoryAlerts = async (): Promise<void> => {
       setLoading(true);
       try {
+        // ✅ USAR: nuevo endpoint de inventory report
         const inventoryData = await reportsService.generateInventoryReport();
         
         const critical = inventoryData.productRotation.filter(p => p.status === 'critical').length;
@@ -225,7 +227,7 @@ export const TopProductsWidget: React.FC<TopProductsWidgetProps> = ({
 }) => {
   const [topProducts, setTopProducts] = useState<Array<{
     productName: string;
-    totalQuantitySold: number;
+    quantitySold: number;
     rank: number;
   }>>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -237,12 +239,17 @@ export const TopProductsWidget: React.FC<TopProductsWidgetProps> = ({
         const endDate = new Date().toISOString().split('T')[0];
         const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+        // ✅ USAR: nuevo endpoint de best selling products
         const topProductsData = await reportsService.generateTopProductsReport(
           { startDate, endDate }, 
           limit
         );
         
-        setTopProducts(topProductsData.topProducts);
+        setTopProducts(topProductsData.products.map(product => ({
+          productName: product.productName,
+          quantitySold: product.quantitySold,
+          rank: product.rank
+        })));
       } catch (error) {
         console.error('Error loading top products:', error);
       } finally {
@@ -280,8 +287,8 @@ export const TopProductsWidget: React.FC<TopProductsWidgetProps> = ({
       ) : (
         <div className="space-y-3">
           {topProducts.map((product, index) => {
-            const maxQuantity = Math.max(...topProducts.map(p => p.totalQuantitySold));
-            const percentage = (product.totalQuantitySold / maxQuantity) * 100;
+            const maxQuantity = Math.max(...topProducts.map(p => p.quantitySold));
+            const percentage = (product.quantitySold / maxQuantity) * 100;
             
             return (
               <div key={product.productName} className="space-y-1">
@@ -298,7 +305,7 @@ export const TopProductsWidget: React.FC<TopProductsWidgetProps> = ({
                     </span>
                   </div>
                   <span className="text-sm text-gray-600">
-                    {formatters.number(product.totalQuantitySold)}
+                    {formatters.number(product.quantitySold)}
                   </span>
                 </div>
                 <ProgressBar 
@@ -343,6 +350,7 @@ export const ProfitabilityWidget: React.FC<ProfitabilityWidgetProps> = ({
         const endDate = new Date().toISOString().split('T')[0];
         const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+        // ✅ USAR: nuevo endpoint de profitability report
         const profitabilityData = await reportsService.generateProfitabilityReport({
           startDate,
           endDate

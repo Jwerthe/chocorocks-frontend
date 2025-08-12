@@ -1,4 +1,4 @@
-// src/components/reports/InventoryReport.tsx
+// src/components/reports/InventoryReport.tsx (ACTUALIZADO - USAR REPORTS API)
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -11,20 +11,17 @@ import { Alert } from '@/components/ui/Alert';
 import { Tabs } from '@/components/ui/Tabs';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatters } from '@/utils/formatters';
-import { InventoryReportData, ReportProps } from '@/types/reports';
-import { 
-  ProductStoreResponse, 
-  ProductResponse, 
-  StoreResponse, 
-  ProductBatchResponse 
-} from '@/types';
-import { productStoreAPI, productAPI, storeAPI, productBatchAPI } from '@/services/api';
+import { ReportProps } from '@/types/reports';
+import { InventoryReportResponse, StoreResponse, CategoryResponse } from '@/types';
+import { storeAPI, categoryAPI } from '@/services/api';
+import { reportsService } from '@/services/reportsService';
 
 interface InventoryReportState {
-  data: InventoryReportData | null;
+  data: InventoryReportResponse | null;
   loading: boolean;
   error: string | null;
   selectedStoreId: number | null;
+  selectedCategoryId: number | null;
 }
 
 export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
@@ -32,22 +29,23 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
     data: null,
     loading: false,
     error: null,
-    selectedStoreId: null
+    selectedStoreId: null,
+    selectedCategoryId: null
   });
 
   const [stores, setStores] = useState<StoreResponse[]>([]);
-  const [products, setProducts] = useState<ProductResponse[]>([]);
+  const [categories, setCategories] = useState<CategoryResponse[]>([]);
 
   // Cargar datos iniciales
   useEffect(() => {
     const loadInitialData = async (): Promise<void> => {
       try {
-        const [storesData, productsData] = await Promise.all([
+        const [storesData, categoriesData] = await Promise.all([
           storeAPI.getAllStores(),
-          productAPI.getAllProducts()
+          categoryAPI.getAllCategories()
         ]);
         setStores(storesData);
-        setProducts(productsData);
+        setCategories(categoriesData);
       } catch (error) {
         console.error('Error loading initial data:', error);
       }
@@ -56,121 +54,20 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
     loadInitialData();
   }, []);
 
+  // ✅ NUEVO: Usar endpoint directo de reports
   const generateReport = useCallback(async (): Promise<void> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      // Obtener datos de inventario
-      const [productStores, productBatches] = await Promise.all([
-        productStoreAPI.getAllProductStores(),
-        productBatchAPI.getAllBatches()
-      ]);
-
-      // Filtrar por tienda si está seleccionada
-      const filteredProductStores = state.selectedStoreId 
-        ? productStores.filter((ps: ProductStoreResponse) => ps.store.id === state.selectedStoreId)
-        : productStores;
-
-      const filteredBatches = state.selectedStoreId
-        ? productBatches.filter((batch: ProductBatchResponse) => 
-            batch.store && batch.store.id === state.selectedStoreId)
-        : productBatches;
-
-      // Calcular métricas generales
-      const totalProducts = filteredProductStores.length;
-      const lowStockProducts = filteredProductStores.filter((ps: ProductStoreResponse) => 
-        ps.currentStock <= ps.minStockLevel).length;
-      
-      // Productos vencidos
-      const today = new Date();
-      const expiredBatches = filteredBatches.filter((batch: ProductBatchResponse) => 
-        new Date(batch.expirationDate) < today);
-      const expiredProducts = expiredBatches.length;
-
-      // Valor total del stock
-      const totalStockValue = filteredProductStores.reduce((sum: number, ps: ProductStoreResponse) => {
-        const product = products.find((p: ProductResponse) => p.id === ps.product.id);
-        return sum + (ps.currentStock * (product?.productionCost || 0));
-      }, 0);
-
-      // Inventario por tienda
-      const inventoryByStore = stores.map((store: StoreResponse) => {
-        const storeProductStores = productStores.filter((ps: ProductStoreResponse) => 
-          ps.store.id === store.id);
-        
-        const productsCount = storeProductStores.length;
-        const totalStock = storeProductStores.reduce((sum: number, ps: ProductStoreResponse) => 
-          sum + ps.currentStock, 0);
-        const stockValue = storeProductStores.reduce((sum: number, ps: ProductStoreResponse) => {
-          const product = products.find((p: ProductResponse) => p.id === ps.product.id);
-          return sum + (ps.currentStock * (product?.productionCost || 0));
-        }, 0);
-
-        return {
-          storeName: store.name,
-          productsCount,
-          totalStock,
-          stockValue
-        };
-      }).filter(item => item.productsCount > 0);
-
-      // Rotación de productos
-      const productRotation = filteredProductStores.map((ps: ProductStoreResponse) => {
-        const product = products.find((p: ProductResponse) => p.id === ps.product.id);
-        const stockRatio = ps.currentStock / Math.max(ps.minStockLevel, 1);
-        
-        let status: 'normal' | 'low' | 'critical';
-        if (ps.currentStock === 0) {
-          status = 'critical';
-        } else if (ps.currentStock <= ps.minStockLevel) {
-          status = 'low';
-        } else {
-          status = 'normal';
-        }
-
-        // Estimación simple de días de stock (asumiendo rotación promedio)
-        const averageDailySales = 5; // Valor estimado, en un caso real se calcularía con datos históricos
-        const daysOfStock = ps.currentStock / Math.max(averageDailySales, 1);
-
-        return {
-          productName: product?.nameProduct || 'Producto desconocido',
-          currentStock: ps.currentStock,
-          minStockLevel: ps.minStockLevel,
-          status,
-          daysOfStock: Math.round(daysOfStock)
-        };
-      });
-
-      // Lotes vencidos
-      const expiredBatchesData = expiredBatches.map((batch: ProductBatchResponse) => ({
-        batchCode: batch.batchCode,
-        productName: batch.product.nameProduct,
-        expirationDate: batch.expirationDate,
-        quantity: batch.currentQuantity
-      }));
-
-      const reportData: InventoryReportData = {
-        totalProducts,
-        lowStockProducts,
-        expiredProducts,
-        totalStockValue,
-        inventoryByStore,
-        productRotation: productRotation.sort((a, b) => {
-          if (a.status === 'critical' && b.status !== 'critical') return -1;
-          if (a.status !== 'critical' && b.status === 'critical') return 1;
-          if (a.status === 'low' && b.status === 'normal') return -1;
-          if (a.status === 'normal' && b.status === 'low') return 1;
-          return 0;
-        }),
-        expiredBatches: expiredBatchesData
-      };
-
+      const report = await reportsService.generateInventoryReport(
+        state.selectedStoreId || undefined,
+        state.selectedCategoryId || undefined
+      );
       setState(prev => ({ 
         ...prev, 
-        data: reportData, 
+        data: report, 
         loading: false 
       }));
-
     } catch (error) {
       setState(prev => ({ 
         ...prev, 
@@ -178,7 +75,7 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
         loading: false 
       }));
     }
-  }, [state.selectedStoreId, stores, products]);
+  }, [state.selectedStoreId, state.selectedCategoryId]);
 
   const handleStoreChange = (storeId: string): void => {
     setState(prev => ({
@@ -187,37 +84,19 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
     }));
   };
 
+  const handleCategoryChange = (categoryId: string): void => {
+    setState(prev => ({
+      ...prev,
+      selectedCategoryId: categoryId ? parseInt(categoryId) : null
+    }));
+  };
+
   const handleExport = (): void => {
     if (!state.data) return;
 
-    const csvContent = [
-      'Reporte de Inventario',
-      `Generado: ${formatters.dateTime(new Date())}`,
-      '',
-      'Resumen General',
-      `Total Productos,${state.data.totalProducts}`,
-      `Productos con Stock Bajo,${state.data.lowStockProducts}`,
-      `Productos Vencidos,${state.data.expiredProducts}`,
-      `Valor Total Stock,${formatters.currency(state.data.totalStockValue)}`,
-      '',
-      'Inventario por Tienda',
-      'Tienda,Productos,Stock Total,Valor Stock',
-      ...state.data.inventoryByStore.map(item => 
-        `${item.storeName},${item.productsCount},${item.totalStock},${item.stockValue}`
-      ),
-      '',
-      'Rotación de Productos',
-      'Producto,Stock Actual,Stock Mínimo,Estado,Días de Stock',
-      ...state.data.productRotation.map(item => 
-        `${item.productName},${item.currentStock},${item.minStockLevel},${item.status},${item.daysOfStock}`
-      )
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `reporte-inventario-${Date.now()}.csv`;
-    link.click();
+    // ✅ USAR: Helper del reportsService
+    const csvData = reportsService.formatInventoryReportForCSV(state.data);
+    reportsService.exportToCSV(csvData, 'reporte-inventario');
   };
 
   const summaryCards = state.data ? [
@@ -248,15 +127,21 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
   ] : [];
 
   const storeColumns = [
-    { key: 'storeName', header: 'Tienda',
-        render: (value: string) => <span className='text-gray-800'>{(value)}</span>
-     },
-    { key: 'productsCount', header: 'Productos',
-        render: (value: string) => <span className='text-gray-800'>{(value)}</span>
-     },
-    { key: 'totalStock', header: 'Stock Total',
-        render: (value: number) => <span className='text-gray-800'>{(value)}</span>
-     },
+    { 
+      key: 'storeName', 
+      header: 'Tienda',
+      render: (value: string) => <span className='text-gray-800'>{value}</span>
+    },
+    { 
+      key: 'productsCount', 
+      header: 'Productos',
+      render: (value: number) => <span className='text-gray-800'>{value}</span>
+    },
+    { 
+      key: 'totalStock', 
+      header: 'Stock Total',
+      render: (value: number) => <span className='text-gray-800'>{value}</span>
+    },
     { 
       key: 'stockValue', 
       header: 'Valor Stock',
@@ -265,9 +150,21 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
   ];
 
   const rotationColumns = [
-    { key: 'productName', header: 'Producto', render: (value: string) => <span className='text-gray-800'>{(value)}</span> },
-    { key: 'currentStock', header: 'Stock Actual',render: (value: number) => <span className='text-gray-800'>{(value)}</span> },
-    { key: 'minStockLevel', header: 'Stock Mínimo', render: (value: number) => <span className='text-gray-800'>{(value)}</span> },
+    { 
+      key: 'productName', 
+      header: 'Producto', 
+      render: (value: string) => <span className='text-gray-800'>{value}</span> 
+    },
+    { 
+      key: 'currentStock', 
+      header: 'Stock Actual',
+      render: (value: number) => <span className='text-gray-800'>{value}</span> 
+    },
+    { 
+      key: 'minStockLevel', 
+      header: 'Stock Mínimo', 
+      render: (value: number) => <span className='text-gray-800'>{value}</span> 
+    },
     { 
       key: 'status', 
       header: 'Estado',
@@ -348,7 +245,7 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
     <div className="space-y-6">
       {/* Filtros */}
       <Card title="Filtros del Reporte">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Select
             label="Tienda"
             value={state.selectedStoreId?.toString() || ''}
@@ -360,6 +257,20 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
               ...stores.map((store: StoreResponse) => ({
                 value: store.id.toString(),
                 label: store.name
+              }))
+            ]}
+          />
+          <Select
+            label="Categoría"
+            value={state.selectedCategoryId?.toString() || ''}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
+              handleCategoryChange(e.target.value)
+            }
+            options={[
+              { value: '', label: 'Todas las categorías' },
+              ...categories.map((category: CategoryResponse) => ({
+                value: category.id.toString(),
+                label: category.name
               }))
             ]}
           />

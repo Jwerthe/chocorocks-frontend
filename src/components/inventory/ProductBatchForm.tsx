@@ -420,7 +420,7 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
           <Input
             label="Costo del Lote ($)*"
             type="number"
-            step="1"
+            step="0.01"
             min="0"
             max="100000"
             value={formData.batchCost}

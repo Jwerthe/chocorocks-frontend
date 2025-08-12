@@ -80,6 +80,37 @@ export const ProductList: React.FC = () => {
     }
   };
 
+  // Helper functions with proper typing
+const isValidDate = (dateString: string | null | undefined): boolean => {
+  if (!dateString) return false;
+  const date = new Date(dateString);
+  return !isNaN(date.getTime());
+};
+
+const safeFormatDate = (dateString: string | null | undefined): string => {
+  if (!isValidDate(dateString)) return 'Fecha inválida';
+  
+  try {
+    return new Date(dateString!).toISOString().split('T')[0];
+  } catch {
+    return '';
+  }
+};
+
+const formatDisplayDate = (dateString: string | null | undefined): string => {
+  if (!isValidDate(dateString)) return 'Fecha inválida';
+  
+  try {
+    const date = new Date(dateString!);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // meses base 0
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+  } catch {
+    return 'Fecha inválida';
+  }
+};
+
   const fetchCategories = async (): Promise<void> => {
     try {
       const data = await categoryAPI.getAllCategories();
@@ -230,6 +261,15 @@ export const ProductList: React.FC = () => {
         </div>
       ),
     },
+         {
+         key: 'createdAt',
+          header: 'Fecha',
+         render: (value: unknown): React.ReactNode => (
+            <span className="text-sm text-gray-700">
+             {formatDisplayDate(String(value))}
+           </span>
+         ),
+        },
     {
       key: 'category.name',
       header: 'Categoría',
