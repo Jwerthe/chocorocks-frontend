@@ -49,7 +49,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
   const { user } = useAuth();
   const { success, error: notifyError } = useNotification();
 
-  const [formData, setFormData] = useState<InventoryMovementRequest>({
+  const [formData, setFormData] = useState<Omit<InventoryMovementRequest, 'userId'> & { userId: string }>({
     movementType: movementType,
     productId: 0,
     batchId: undefined,
@@ -59,7 +59,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     reason: MovementReason.SALE,
     referenceId: undefined,
     referenceType: undefined,
-    userId: 1,
+    userId: '',
     notes: '',
   });
 
@@ -71,22 +71,21 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
   const [error, setError] = useState<string>('');
   const [errors, setErrors] = useState<FormErrors>({});
 
-  // ✅ CORREGIDO: Obtener correctamente el userId
-  const getUserId = useCallback((): number => {
+  // ✅ CORREGIDO: Obtener correctamente el userId como string
+  const getUserId = useCallback((): string => {
     if (!user) {
       console.error('❌ No hay usuario logueado');
-      return 0;
+      return '';
     }
     
-    const userId = parseInt(user.id);
-    console.log(`👤 Usuario logueado: ID=${userId}, Email=${user.email}, Nombre=${user.name}`);
+    console.log(`👤 Usuario logueado: ID=${user.id}, Email=${user.email}, Nombre=${user.name}`);
     
-    if (isNaN(userId) || userId <= 0) {
-      console.error('❌ ID de usuario inválido:', user.id);
-      return 0;
+    if (!user.id || user.id.trim() === '') {
+      console.error('❌ ID de usuario vacío:', user.id);
+      return '';
     }
     
-    return userId;
+    return user.id;
   }, [user]);
 
   const resetForm = useCallback((): void => {
@@ -182,7 +181,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
 
     // ✅ NUEVA VALIDACIÓN: Verificar que hay usuario logueado
     const currentUserId = getUserId();
-    if (!currentUserId || currentUserId === 0) {
+    if (!currentUserId || currentUserId.trim() === '') {
       newErrors.general = 'Debes estar logueado para realizar esta acción. Por favor, inicia sesión nuevamente.';
     }
 
@@ -238,12 +237,14 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
 
       console.log('📤 Enviando datos del movimiento:', movementData);
 
-      // ✅ NUEVA VALIDACIÓN: Verificar antes de enviar
-      if (!currentUserId || currentUserId === 0) {
+        // ✅ NUEVA VALIDACIÓN: Verificar antes de enviar
+      if (!currentUserId || currentUserId.trim() === '') {
         throw new Error('No se pudo obtener el ID del usuario. Por favor, inicia sesión nuevamente.');
       }
 
-      await inventoryMovementAPI.createMovement(movementData);
+      console.log('📤 Enviando datos del movimiento:', movementData);
+
+      await inventoryMovementAPI.createMovement(movementData as any); // Temporary cast while types are inconsistent
       success('Movimiento de inventario registrado correctamente');
       onSuccess();
       onClose();
@@ -258,9 +259,9 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     }
   };
 
-  const handleInputChange = <K extends keyof InventoryMovementRequest>(
-    field: K, 
-    value: InventoryMovementRequest[K]
+  const handleInputChange = (
+    field: keyof (Omit<InventoryMovementRequest, 'userId'> & { userId: string }), 
+    value: any
   ): void => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
@@ -320,7 +321,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
 
   // ✅ NUEVA VALIDACIÓN: Verificar que el usuario esté logueado
   const currentUserId = getUserId();
-  const isUserValid = currentUserId > 0;
+  const isUserValid = currentUserId !== '' && currentUserId.trim() !== '';
 
   return (
     <Modal
