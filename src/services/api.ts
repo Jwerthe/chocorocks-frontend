@@ -313,6 +313,11 @@ export class SaleAPI extends ApiService {
     return this.delete<void>(`/${id}`);
   }
 
+  // ✅ NUEVO: Verificar stock disponible antes de venta
+  async checkProductStock(productId: number): Promise<{ available: number }> {
+    return this.get<{ available: number }>(`/products/${productId}/stock`);
+  }
+
   async completeWithReceipt(
     id: number, 
     data: { paymentMethod?: string; additionalNotes?: string }

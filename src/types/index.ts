@@ -295,10 +295,12 @@ export interface SaleRequest {
   clientId?: number;
   storeId: number;
   saleType: SaleType;
+  subtotal: number;
   discountPercentage: number;
   discountAmount: number;
   taxPercentage: number;
   taxAmount: number;
+  totalAmount: number;
   paymentMethod?: string;
   notes?: string;
   isInvoiced: boolean;
@@ -656,4 +658,12 @@ export interface BatchFilters {
   productId: string;
   showExpiring: boolean;
   showLowStock: boolean;
+}
+
+
+// ✅ NUEVA: Para respuesta de verificación de stock
+export interface StockCheckResponse {
+  available: number;
+  productId: number;
+  productName: string;
 }
