@@ -1,4 +1,4 @@
-// src/components/sales/SaleForm.tsx
+// src/components/sales/SaleForm.tsx - CORREGIDO
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -22,6 +22,8 @@ import {
   SaleType 
 } from '@/types';
 import { saleAPI, saleDetailAPI, productAPI, ApiError } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAuthNumericId } from '@/hooks/useAuthNumericId';
 
 interface SaleFormProps {
   isOpen: boolean;
@@ -62,9 +64,12 @@ export const SaleForm: React.FC<SaleFormProps> = ({
   clients,
   users,
 }) => {
+  const { user } = useAuth();
+  const { numericUserId, loading: loadingUserId, error: userError } = useAuthNumericId(); // ✅ HOOK: Obtener ID numérico
+
   const [formData, setFormData] = useState<SaleRequest>({
     saleNumber: '',
-    userId: 1, // TODO: Get from auth context
+    userId: 0, // ✅ CAMBIADO: Se llenará dinámicamente
     clientId: undefined,
     storeId: 0,
     saleType: SaleType.RETAIL,
@@ -94,13 +99,15 @@ export const SaleForm: React.FC<SaleFormProps> = ({
   // Client form
   const [showClientForm, setShowClientForm] = useState<boolean>(false);
 
+  // ✅ SIMPLIFICADO: Inicializar cuando se abre el modal
   useEffect(() => {
     if (isOpen) {
       fetchProducts();
+      
       if (editingSale) {
         setFormData({
           saleNumber: editingSale.saleNumber,
-          userId: editingSale.user.id,
+          userId: editingSale.user.id, // Al editar, usar el ID existente
           clientId: editingSale.client?.id,
           storeId: editingSale.store.id,
           saleType: editingSale.saleType,
@@ -112,57 +119,58 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           notes: editingSale.notes || '',
           isInvoiced: editingSale.isInvoiced,
         });
-        // TODO: Fetch sale details for editing
-        fetchSaleDetails(editingSale.id);
+        loadSaleItems(editingSale.id);
       } else {
         resetForm();
-        generateSaleNumber();
       }
     }
   }, [isOpen, editingSale]);
 
-  const fetchProducts = async (): Promise<void> => {
+  // ✅ NUEVO: Actualizar userId cuando se obtenga del hook
+  useEffect(() => {
+    if (numericUserId > 0 && !editingSale) {
+      setFormData(prev => ({ ...prev, userId: numericUserId }));
+    }
+  }, [numericUserId, editingSale]);
+
+  const fetchProducts = useCallback(async (): Promise<void> => {
     try {
+      setLoading(true);
       const data = await productAPI.getAllProducts();
       setProducts(data.filter(p => p.isActive));
     } catch (err) {
-      console.error('Error fetching products:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Error al cargar productos';
+      setError(errorMessage);
+      console.error('Error loading products:', err);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchSaleDetails = async (saleId: number): Promise<void> => {
+  const loadSaleItems = useCallback(async (saleId: number): Promise<void> => {
     try {
-      // Obtener todos los sale details y filtrar por sale ID
-      const allDetails = await saleDetailAPI.getAllSaleDetails();
-      const filteredDetails = allDetails.filter(detail => detail.sale.id === saleId);
+      const details = await saleDetailAPI.getAllSaleDetails();
+      const saleDetails = details.filter(detail => detail.sale.id === saleId);
       
-      const items: SaleItem[] = filteredDetails.map(detail => ({
+      const items: SaleItem[] = saleDetails.map(detail => ({
         id: detail.id,
         productId: detail.product.id,
         product: detail.product,
         quantity: detail.quantity,
-        unitPrice: Number(detail.unitPrice),
-        subtotal: Number(detail.subtotal),
+        unitPrice: detail.unitPrice,
+        subtotal: detail.subtotal,
       }));
+      
       setSaleItems(items);
     } catch (err) {
-      console.error('Error fetching sale details:', err);
+      console.error('Error loading sale items:', err);
     }
-  };
+  }, []);
 
-  const generateSaleNumber = (): void => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = (now.getMonth() + 1).toString().padStart(2, '0');
-    const day = now.getDate().toString().padStart(2, '0');
-    const random = Math.random().toString(36).substr(2, 4).toUpperCase();
-    setFormData(prev => ({ ...prev, saleNumber: `VT-${year}${month}${day}-${random}` }));
-  };
-
-  const resetForm = (): void => {
+  const resetForm = useCallback((): void => {
     setFormData({
       saleNumber: '',
-      userId: 1,
+      userId: numericUserId, // ✅ USAR: ID del hook
       clientId: undefined,
       storeId: 0,
       saleType: SaleType.RETAIL,
@@ -175,11 +183,28 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       isInvoiced: false,
     });
     setSaleItems([]);
-    setNewItem({ productId: 0, quantity: 1 });
     setErrors({});
     setError('');
-    setShowAddItem(false);
-  };
+    setNewItem({ productId: 0, quantity: 1 });
+  }, [numericUserId]);
+
+  const calculateTotals = useCallback((): void => {
+    const subtotal = saleItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const discountAmount = subtotal * (formData.discountPercentage / 100);
+    const taxableAmount = subtotal - discountAmount;
+    const taxAmount = taxableAmount * (formData.taxPercentage / 100);
+    const totalAmount = taxableAmount + taxAmount;
+
+    setFormData(prev => ({
+      ...prev,
+      discountAmount,
+      taxAmount,
+    }));
+  }, [saleItems, formData.discountPercentage, formData.taxPercentage]);
+
+  useEffect(() => {
+    calculateTotals();
+  }, [calculateTotals]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -188,12 +213,13 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       newErrors.saleNumber = 'El número de venta es requerido';
     }
 
-    if (!formData.storeId || formData.storeId === 0) {
-      newErrors.storeId = 'La tienda es requerida';
+    // ✅ VALIDACIÓN: Verificar que hay usuario numérico válido del hook
+    if (!numericUserId || numericUserId === 0) {
+      newErrors.userId = 'Error: No se pudo obtener la información del usuario. Por favor, recarga la página.';
     }
 
-    if (!formData.userId || formData.userId === 0) {
-      newErrors.userId = 'El usuario/vendedor es requerido';
+    if (!formData.storeId || formData.storeId === 0) {
+      newErrors.storeId = 'La tienda es requerida';
     }
 
     if (saleItems.length === 0) {
@@ -201,169 +227,152 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     }
 
     if (formData.discountPercentage < 0 || formData.discountPercentage > 100) {
-      newErrors.discountPercentage = 'El descuento debe estar entre 0 y 100%';
+      newErrors.discountPercentage = 'El descuento debe estar entre 0% y 100%';
     }
 
     if (formData.taxPercentage < 0 || formData.taxPercentage > 100) {
-      newErrors.taxPercentage = 'El impuesto debe estar entre 0 y 100%';
+      newErrors.taxPercentage = 'El impuesto debe estar entre 0% y 100%';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const calculateTotals = useCallback(() => {
-    const subtotal = saleItems.reduce((sum, item) => sum + item.subtotal, 0);
-    const discountAmount = formData.discountPercentage > 0 
-      ? (subtotal * formData.discountPercentage) / 100 
-      : formData.discountAmount;
-    const totalWithDiscount = subtotal - discountAmount;
-    const taxAmount = (totalWithDiscount * formData.taxPercentage) / 100;
-    const totalAmount = totalWithDiscount + taxAmount;
+  const validateNewItem = (): boolean => {
+    const newErrors: Record<string, string> = {};
 
-    return {
-      subtotal,
-      discountAmount,
-      taxAmount,
-      totalAmount,
-    };
-  }, [saleItems, formData.discountPercentage, formData.discountAmount, formData.taxPercentage]);
-
-  const totals = calculateTotals();
-
-  const handleAddItem = (): void => {
     if (!newItem.productId || newItem.productId === 0) {
-      setError('Selecciona un producto');
-      return;
+      newErrors.newItemProduct = 'Debe seleccionar un producto';
     }
 
     if (!newItem.quantity || newItem.quantity <= 0) {
-      setError('La cantidad debe ser mayor a 0');
-      return;
+      newErrors.newItemQuantity = 'La cantidad debe ser mayor a 0';
     }
 
-    const product = products.find(p => p.id === newItem.productId);
-    if (!product) {
-      setError('Producto no encontrado');
-      return;
+    // Check if product already exists in sale items
+    if (newItem.productId && saleItems.some(item => item.productId === newItem.productId)) {
+      newErrors.newItemProduct = 'Este producto ya está en la venta';
     }
 
-    // Check if product already exists in items
-    const existingItemIndex = saleItems.findIndex(item => item.productId === newItem.productId);
-    
-    if (existingItemIndex >= 0) {
-      // Update existing item
-      const updatedItems = [...saleItems];
-      updatedItems[existingItemIndex].quantity += newItem.quantity!;
-      updatedItems[existingItemIndex].subtotal = 
-        updatedItems[existingItemIndex].quantity * updatedItems[existingItemIndex].unitPrice;
-      setSaleItems(updatedItems);
-    } else {
-      // Add new item
-      const unitPrice = formData.saleType === SaleType.RETAIL 
-        ? Number(product.retailPrice) 
-        : Number(product.wholesalePrice);
-      
-      const newSaleItem: SaleItem = {
-        productId: newItem.productId!,
-        product,
-        quantity: newItem.quantity!,
-        unitPrice,
-        subtotal: unitPrice * newItem.quantity!,
-      };
-
-      setSaleItems(prev => [...prev, newSaleItem]);
-    }
-
-    setNewItem({ productId: 0, quantity: 1 });
-    setShowAddItem(false);
-    setError('');
+    setErrors(prev => ({ ...prev, ...newErrors }));
+    return Object.keys(newErrors).length === 0;
   };
 
-  const handleRemoveItem = (index: number): void => {
+  const addItemToSale = (): void => {
+    if (!validateNewItem()) return;
+
+    const product = products.find(p => p.id === newItem.productId);
+    if (!product) return;
+
+    const unitPrice = product.retailPrice; // Assuming retail price for now
+    const quantity = newItem.quantity || 1;
+    const subtotal = unitPrice * quantity;
+
+    const item: SaleItem = {
+      productId: product.id,
+      product,
+      quantity,
+      unitPrice,
+      subtotal,
+    };
+
+    setSaleItems(prev => [...prev, item]);
+    setNewItem({ productId: 0, quantity: 1 });
+    setShowAddItem(false);
+    
+    // Clear any item-related errors
+    setErrors(prev => {
+      const { newItemProduct, newItemQuantity, items, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const removeItemFromSale = (index: number): void => {
     setSaleItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleUpdateItemQuantity = (index: number, quantity: number): void => {
-    if (quantity <= 0) {
-      handleRemoveItem(index);
-      return;
-    }
+  const updateItemQuantity = (index: number, newQuantity: number): void => {
+    if (newQuantity <= 0) return;
 
-    // Validar que el índice sea válido
-    if (index < 0 || index >= saleItems.length) {
-      console.error('Índice inválido:', index);
-      return;
-    }
-
-    const updatedItems = [...saleItems];
-    updatedItems[index].quantity = quantity;
-    updatedItems[index].subtotal = updatedItems[index].unitPrice * quantity;
-    setSaleItems(updatedItems);
+    setSaleItems(prev => prev.map((item, i) => {
+      if (i === index) {
+        const subtotal = item.unitPrice * newQuantity;
+        return { ...item, quantity: newQuantity, subtotal };
+      }
+      return item;
+    }));
   };
 
-// REEMPLAZAR handleSubmit en SaleForm.tsx:
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setSubmitting(true);
     setError('');
 
     try {
-      // Update form data with calculated totals
-      const saleData = {
+      // ✅ VALIDACIÓN: Verificar userId numérico del hook antes de enviar
+      if (!numericUserId || numericUserId === 0) {
+        throw new Error('No se pudo obtener el ID del usuario. Por favor, recarga la página.');
+      }
+
+      // Calculate final totals
+      const subtotal = saleItems.reduce((sum, item) => sum + item.subtotal, 0);
+      const discountAmount = subtotal * (formData.discountPercentage / 100);
+      const taxableAmount = subtotal - discountAmount;
+      const taxAmount = taxableAmount * (formData.taxPercentage / 100);
+
+      const saleData: SaleRequest = {
         ...formData,
-        discountAmount: totals.discountAmount,
-        taxAmount: totals.taxAmount,
+        userId: numericUserId, // ✅ USAR: ID numérico del hook
+        discountAmount,
+        taxAmount,
       };
 
+      console.log('📤 [SaleForm] Enviando datos de venta:', saleData);
+
       let savedSale: SaleResponse;
-      
       if (editingSale) {
-        // Actualizar venta existente
         savedSale = await saleAPI.updateSale(editingSale.id, saleData);
-        
-        // Para edición, necesitamos manejar los detalles de venta
-        // Primero eliminar los detalles existentes (si es necesario)
-        // Luego crear los nuevos detalles
-        
-        // Por simplicidad, solo actualizar la venta principal
-        console.log('Venta actualizada:', savedSale);
       } else {
-        // Crear nueva venta
         savedSale = await saleAPI.createSale(saleData);
-        
-        // Create sale details
-        for (const item of saleItems) {
-          const detailData: SaleDetailRequest = {
-            saleId: savedSale.id,
-            productId: item.productId,
-            quantity: item.quantity,
-          };
-          await saleDetailAPI.createSaleDetail(detailData);
+      }
+
+      // Save sale items
+      for (const item of saleItems) {
+        const saleDetailData: SaleDetailRequest = {
+          saleId: savedSale.id,
+          productId: item.productId,
+          quantity: item.quantity,
+        };
+
+        if (item.id && editingSale) {
+          await saleDetailAPI.updateSaleDetail(item.id, saleDetailData);
+        } else {
+          await saleDetailAPI.createSaleDetail(saleDetailData);
         }
       }
-      
+
       onSuccess();
-      onClose();
-    } catch (err) {
-      let errorMessage = editingSale ? 'Error al actualizar la venta' : 'Error al crear la venta';
+      handleModalClose();
+    } catch (err: any) {
+      const errorMessage = editingSale 
+        ? 'Error al actualizar la venta' 
+        : 'Error al crear la venta';
       
       if (err instanceof ApiError) {
         if (err.status === 401) {
-          errorMessage = 'Sesión expirada. Por favor, inicia sesión nuevamente.';
+          setError('Sesión expirada. Por favor, inicia sesión nuevamente.');
         } else if (err.status === 403) {
-          errorMessage = 'No tienes permisos para realizar esta acción.';
+          setError('No tienes permisos para realizar esta acción.');
         } else {
-          errorMessage = err.message;
+          setError(err.message);
         }
+      } else {
+        setError(errorMessage);
       }
       
-      setError(errorMessage);
       console.error('Error submitting sale:', err);
     } finally {
       setSubmitting(false);
@@ -390,6 +399,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     setShowClientForm(false);
   };
 
+  // Opciones para selects
   const storeOptions: SelectOption[] = [
     { value: 0, label: 'Seleccionar tienda...' },
     ...stores.map(store => ({ value: store.id, label: store.name }))
@@ -398,11 +408,6 @@ export const SaleForm: React.FC<SaleFormProps> = ({
   const clientOptions: SelectOption[] = [
     { value: '', label: 'Cliente General (Sin cliente específico)' },
     ...clients.map(client => ({ value: client.id, label: client.nameLastname }))
-  ];
-
-  const userOptions: SelectOption[] = [
-    { value: 0, label: 'Seleccionar vendedor...' },
-    ...users.map(user => ({ value: user.id, label: user.name }))
   ];
 
   const productOptions: SelectOption[] = [
@@ -425,16 +430,24 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     }).format(amount);
   };
 
+  // Calcular totales para mostrar
+  const subtotal = saleItems.reduce((sum, item) => sum + item.subtotal, 0);
+  const discountAmount = subtotal * (formData.discountPercentage / 100);
+  const taxableAmount = subtotal - discountAmount;
+  const taxAmount = taxableAmount * (formData.taxPercentage / 100);
+  const totalAmount = taxableAmount + taxAmount;
+
   const itemColumns: TableColumn<SaleItem>[] = [
     {
-      key: 'product.nameProduct',
+      key: 'product',
       header: 'Producto',
-      render: (value: string, row: SaleItem) => (
+      render: (_, item) => (
         <div>
-          <div className="font-medium text-gray-700 text-sm">{value}</div>
-          <div className="text-xs text-gray-600">
-            {row.product?.flavor && `${row.product.flavor} - `}
-            {row.product?.size || 'Sin tamaño'}
+          <div className="font-medium text-gray-800">
+            {item.product?.nameProduct}
+          </div>
+          <div className="text-sm text-gray-500">
+            {item.product?.flavor} - {item.product?.size}
           </div>
         </div>
       ),
@@ -442,288 +455,257 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     {
       key: 'quantity',
       header: 'Cantidad',
-      render: (value: number, row: SaleItem) => {
-        const index = saleItems.findIndex(item => 
-          item.productId === row.productId && 
-          item.id === row.id
-        );
-        return (
-          <Input
-            type="number"
-            value={value}
-            onChange={(e) => handleUpdateItemQuantity(index, parseInt(e.target.value) || 0)}
-            className="w-20"
-            min="1"
-          />
-        );
-      },
+      render: (_, item, index) => (
+        <Input
+          type="number"
+          min="1"
+          value={item.quantity}
+          onChange={(e) => updateItemQuantity(index!, parseInt(e.target.value) || 1)}
+          className="w-20"
+        />
+      ),
     },
     {
       key: 'unitPrice',
       header: 'Precio Unit.',
-      render: (value: number) => <span className='text-gray-700'>{formatCurrency(value)}</span>,
+      render: (value) => formatCurrency(value),
     },
     {
       key: 'subtotal',
       header: 'Subtotal',
-      render: (value: number) => (
-        <span className="font-bold text-green-600">
-          {formatCurrency(value)}
-        </span>
-      ),
+      render: (value) => formatCurrency(value),
     },
     {
       key: 'actions',
       header: 'Acciones',
-      render: (_: any, row: SaleItem) => {
-        const index = saleItems.findIndex(item => 
-          item.productId === row.productId && 
-          item.id === row.id
-        );
-        return (
-          <Button
-            size="sm"
-            variant="danger"
-            onClick={() => handleRemoveItem(index)}
-          >
-            Eliminar
-          </Button>
-        );
-      },
+      render: (_, __, index) => (
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={() => removeItemFromSale(index!)}
+        >
+          Eliminar
+        </Button>
+      ),
     },
   ];
+
+  // ✅ ESTADO: Validación del usuario usando el hook
+  const isUserValid = numericUserId > 0 && !loadingUserId;
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleModalClose}
-      title={editingSale ? 'Editar Venta' : 'Crear Nueva Venta'}
+      title={editingSale ? 'Editar Venta' : 'Nueva Venta'}
       size="xl"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        {error && (
-          <Alert variant="error" onClose={() => setError('')}>
-            {error}
+        {error && <Alert variant="error">{error}</Alert>}
+        {errors.userId && <Alert variant="error">{errors.userId}</Alert>}
+        
+        {/* ✅ ALERTAS: Estado del usuario */}
+        {userError && <Alert variant="error">{userError}</Alert>}
+        {!isUserValid && loadingUserId && (
+          <Alert variant="warning">
+            ⚠️ Cargando información del usuario...
           </Alert>
         )}
 
-        {errors.items && (
-          <Alert variant="warning">
-            {errors.items}
-          </Alert>
+        {/* ✅ DEBUG: Info del usuario en desarrollo */}
+        {process.env.NODE_ENV === 'development' && user && numericUserId > 0 && (
+          <div className="bg-gray-100 p-2 text-xs text-gray-600">
+            <strong>Debug Info:</strong> 
+            Auth UUID: {user.id} | 
+            Backend ID: {numericUserId} | 
+            Email: {user.email}
+          </div>
         )}
-        
-        {/* Basic Information */}
+
+        {/* Información básica de la venta */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
             label="Número de Venta*"
             value={formData.saleNumber}
             onChange={(e) => handleInputChange('saleNumber', e.target.value)}
             error={errors.saleNumber}
-            disabled={!!editingSale || submitting}
-            placeholder="VT-YYYYMMDD-XXXX"
-            required
+            placeholder="Ej: SALE-001"
           />
 
           <Select
             label="Tienda*"
             value={formData.storeId}
-            onChange={(e) => handleInputChange('storeId', parseInt(e.target.value))}
+            onChange={(e) => handleInputChange('storeId', parseInt(e.target.value) || 0)}
             options={storeOptions}
             error={errors.storeId}
-            disabled={submitting}
-            required
           />
 
           <Select
-            label="Vendedor*"
-            value={formData.userId}
-            onChange={(e) => handleInputChange('userId', parseInt(e.target.value))}
-            options={userOptions}
-            error={errors.userId}
-            disabled={submitting}
-            required
-          />
-
-          <div className="flex space-x-2">
-            <div className="flex-1">
-              <Select
-                label="Cliente"
-                value={formData.clientId?.toString() || ''}
-                onChange={(e) => handleInputChange('clientId', e.target.value ? parseInt(e.target.value) : undefined)}
-                options={clientOptions}
-                disabled={submitting}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowClientForm(true)}
-                disabled={submitting}
-                className="px-3"
-              >
-                + Cliente
-              </Button>
-            </div>
-          </div>
-
-          <Select
-            label="Tipo de Venta*"
+            label="Tipo de Venta"
             value={formData.saleType}
             onChange={(e) => handleInputChange('saleType', e.target.value as SaleType)}
             options={saleTypeOptions}
-            disabled={submitting}
-            required
           />
 
-          <Input
-            label="Método de Pago"
-            value={formData.paymentMethod}
-            onChange={(e) => handleInputChange('paymentMethod', e.target.value)}
-            placeholder="Efectivo, Tarjeta, Transferencia..."
-            disabled={submitting}
-          />
-        </div>
-
-        {/* Sale Items */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg text-gray-800 font-bold">Productos de la Venta</h3>
+          <div className="flex gap-2">
+            <Select
+              label="Cliente"
+              value={formData.clientId || ''}
+              onChange={(e) => handleInputChange('clientId', e.target.value ? parseInt(e.target.value) : undefined)}
+              options={clientOptions}
+              className="flex-1"
+            />
             <Button
               type="button"
-              variant="success"
-              onClick={() => setShowAddItem(!showAddItem)}
-              disabled={submitting}
+              variant="outline"
+              onClick={() => setShowClientForm(true)}
+              className="mt-6"
+            >
+              Nuevo Cliente
+            </Button>
+          </div>
+        </div>
+
+        {/* Items de la venta */}
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Productos</h3>
+            <Button
+              type="button"
+              onClick={() => setShowAddItem(true)}
             >
               + Agregar Producto
             </Button>
           </div>
 
-          {showAddItem && (
-            <div className="bg-gray-50 border-2 border-black p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Select
-                  label="Producto*"
-                  value={newItem.productId || 0}
-                  onChange={(e) => setNewItem(prev => ({ ...prev, productId: parseInt(e.target.value) }))}
-                  options={productOptions}
-                />
+          {errors.items && <Alert variant="error">{errors.items}</Alert>}
 
-                <Input
-                  label="Cantidad*"
-                  type="number"
-                  value={newItem.quantity || 1}
-                  onChange={(e) => setNewItem(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
-                  min="1"
-                />
-
-                <div className="flex items-end space-x-2">
-                  <Button
-                    type="button"
-                    onClick={handleAddItem}
-                    disabled={!newItem.productId || !newItem.quantity}
-                  >
-                    Agregar
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setShowAddItem(false)}
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {saleItems.length > 0 && (
+          {saleItems.length > 0 ? (
             <Table
               data={saleItems}
               columns={itemColumns}
-              emptyMessage="No hay productos agregados"
+              loading={false}
+              emptyMessage="No hay productos en la venta"
             />
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No hay productos agregados a la venta
+            </div>
           )}
         </div>
 
-        {/* Discounts and Taxes */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input
-            label="Descuento (%)"
-            type="number"
-            step="1"
-            value={formData.discountPercentage}
-            onChange={(e) => handleInputChange('discountPercentage', parseFloat(e.target.value) || 0)}
-            error={errors.discountPercentage}
-            min="0"
-            max="100"
-            disabled={submitting}
-          />
+        {/* Modal para agregar producto */}
+        {showAddItem && (
+          <Modal
+            isOpen={showAddItem}
+            onClose={() => setShowAddItem(false)}
+            title="Agregar Producto"
+            size="md"
+          >
+            <div className="space-y-4">
+              <Select
+                label="Producto*"
+                value={newItem.productId || 0}
+                onChange={(e) => setNewItem(prev => ({ ...prev, productId: parseInt(e.target.value) || 0 }))}
+                options={productOptions}
+                error={errors.newItemProduct}
+              />
 
-          <Input
-            label="Impuesto (%)"
-            type="number"
-            step="1"
-            value={formData.taxPercentage}
-            onChange={(e) => handleInputChange('taxPercentage', parseFloat(e.target.value) || 0)}
-            error={errors.taxPercentage}
-            min="0"
-            max="100"
-            disabled={submitting}
-          />
-        </div>
+              <Input
+                label="Cantidad*"
+                type="number"
+                min="1"
+                value={newItem.quantity || 1}
+                onChange={(e) => setNewItem(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
+                error={errors.newItemQuantity}
+              />
 
-        {/* Totals Summary */}
+              <div className="flex justify-end space-x-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setShowAddItem(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={addItemToSale}
+                >
+                  Agregar
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {/* Totales */}
         {saleItems.length > 0 && (
-          <div className="bg-gray-50 border-2 border-black p-4 text-gray-700">
-            <h4 className="font-bold mb-4">Resumen de Totales</h4>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="flex justify-between">
-                <span>Subtotal:</span>
-                <span className="font-bold">{formatCurrency(totals.subtotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Descuento:</span>
-                <span className="font-bold text-red-600">-{formatCurrency(totals.discountAmount)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Impuestos:</span>
-                <span className="font-bold">{formatCurrency(totals.taxAmount)}</span>
-              </div>
-              <div className="flex justify-between border-t-2 border-black pt-2">
-                <span className="text-lg font-bold">TOTAL:</span>
-                <span className="text-lg font-bold text-green-600">{formatCurrency(totals.totalAmount)}</span>
+          <div className="border-t pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <Input
+                label="Descuento (%)"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={formData.discountPercentage}
+                onChange={(e) => handleInputChange('discountPercentage', parseFloat(e.target.value) || 0)}
+                error={errors.discountPercentage}
+              />
+
+              <Input
+                label="Impuesto (%)"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={formData.taxPercentage}
+                onChange={(e) => handleInputChange('taxPercentage', parseFloat(e.target.value) || 0)}
+                error={errors.taxPercentage}
+              />
+
+              <Input
+                label="Método de Pago"
+                value={formData.paymentMethod}
+                onChange={(e) => handleInputChange('paymentMethod', e.target.value)}
+                placeholder="Efectivo, Tarjeta, etc."
+              />
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>{formatCurrency(subtotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Descuento:</span>
+                  <span>-{formatCurrency(discountAmount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Impuesto:</span>
+                  <span>{formatCurrency(taxAmount)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-lg border-t pt-2">
+                  <span>Total:</span>
+                  <span>{formatCurrency(totalAmount)}</span>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Notes */}
+        {/* Notas */}
         <Input
           label="Notas"
           value={formData.notes}
           onChange={(e) => handleInputChange('notes', e.target.value)}
           placeholder="Observaciones adicionales..."
-          disabled={submitting}
         />
 
-        {/* Invoiced checkbox */}
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            id="isInvoiced"
-            checked={formData.isInvoiced}
-            onChange={(e) => handleInputChange('isInvoiced', e.target.checked)}
-            className="w-4 h-4 border-2 border-black"
-            disabled={submitting}
-          />
-          <label htmlFor="isInvoiced" className="text-sm font-medium text-gray-700">
-            Venta facturada
-          </label>
-        </div>
-
-        <div className="flex justify-end space-x-3 pt-4 border-t-2 border-gray-200">
+        {/* Botones */}
+        <div className="flex justify-end space-x-3">
           <Button
             type="button"
             variant="secondary"
@@ -735,13 +717,15 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           <Button
             type="submit"
             isLoading={submitting}
-            disabled={submitting || saleItems.length === 0}
+            disabled={!isUserValid || saleItems.length === 0 || loadingUserId}
           >
-            {editingSale ? 'Actualizar' : 'Crear'} Venta
+            {loadingUserId ? 'Validando usuario...' : 
+             editingSale ? 'Actualizar Venta' : 'Crear Venta'}
           </Button>
         </div>
       </form>
 
+      {/* Cliente Form Modal */}
       <ClientForm
         isOpen={showClientForm}
         onClose={() => setShowClientForm(false)}

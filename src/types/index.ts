@@ -291,7 +291,7 @@ export interface Sale extends BaseEntity {
 
 export interface SaleRequest {
   saleNumber: string;
-  userId: number;
+  userId: string;
   clientId?: number;
   storeId: number;
   saleType: SaleType;
@@ -373,7 +373,7 @@ export interface InventoryMovementRequest {
   reason: MovementReason;
   referenceId?: number;
   referenceType?: string;
-  userId: number;
+  userId: string;
   notes?: string;
 }
 
@@ -405,7 +405,7 @@ export interface UserActivity extends BaseEntity {
 }
 
 export interface UserActivityRequest {
-  userId: number;
+  userId: string;
   activityType: string;
   description: string;
   entityType?: string;

@@ -417,18 +417,18 @@ export class InventoryMovementAPI extends ApiService {
     return this.get<InventoryMovementResponse>(`/${id}`);
   }
 
-  async createMovement(movement: any): Promise<InventoryMovementResponse> {
+  async createMovement(movement: InventoryMovementRequest): Promise<InventoryMovementResponse> {
     console.log('📤 Creating inventory movement:', movement);
     
-    // ✅ VALIDACIÓN: Verificar que el userId no esté vacío (string UUID)
-    if (!movement.userId || movement.userId.trim() === '') {
+    // ✅ VALIDACIÓN: Verificar que el userId no esté vacío o sea 0
+    if (!movement.userId || movement.userId === 0) {
       throw new ApiError('ID de usuario es requerido y debe ser válido', 400);
     }
     
     return this.post<InventoryMovementResponse>('', movement);
   }
 
-  async updateMovement(id: number, movement: any): Promise<InventoryMovementResponse> {
+  async updateMovement(id: number, movement: InventoryMovementRequest): Promise<InventoryMovementResponse> {
     return this.put<InventoryMovementResponse>(`/${id}`, movement);
   }
 

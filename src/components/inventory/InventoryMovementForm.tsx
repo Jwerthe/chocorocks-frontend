@@ -18,6 +18,7 @@ import {
 import { inventoryMovementAPI, productAPI, storeAPI, productBatchAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotification } from '@/hooks/useNotification';
+import { useAuthNumericId } from '@/hooks/useAuthNumericId';
 import { 
   createMovementReasonOptions,
   createStoreOptions,
@@ -48,8 +49,9 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
 }) => {
   const { user } = useAuth();
   const { success, error: notifyError } = useNotification();
+  const { numericUserId, loading: loadingUserId, error: userError } = useAuthNumericId(); // ✅ NUEVO: Hook personalizado
 
-  const [formData, setFormData] = useState<Omit<InventoryMovementRequest, 'userId'> & { userId: string }>({
+  const [formData, setFormData] = useState<InventoryMovementRequest>({
     movementType: movementType,
     productId: 0,
     batchId: undefined,
@@ -59,7 +61,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     reason: MovementReason.SALE,
     referenceId: undefined,
     referenceType: undefined,
-    userId: '',
+    userId: 0, // Se llenará con numericUserId del hook
     notes: '',
   });
 
@@ -71,26 +73,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
   const [error, setError] = useState<string>('');
   const [errors, setErrors] = useState<FormErrors>({});
 
-  // ✅ CORREGIDO: Obtener correctamente el userId como string
-  const getUserId = useCallback((): string => {
-    if (!user) {
-      console.error('❌ No hay usuario logueado');
-      return '';
-    }
-    
-    console.log(`👤 Usuario logueado: ID=${user.id}, Email=${user.email}, Nombre=${user.name}`);
-    
-    if (!user.id || user.id.trim() === '') {
-      console.error('❌ ID de usuario vacío:', user.id);
-      return '';
-    }
-    
-    return user.id;
-  }, [user]);
-
   const resetForm = useCallback((): void => {
-    const currentUserId = getUserId();
-    
     setFormData({
       movementType: movementType,
       productId: 0,
@@ -101,7 +84,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
       reason: MovementReason.SALE,
       referenceId: undefined,
       referenceType: undefined,
-      userId: currentUserId,
+      userId: numericUserId, // ✅ USAR: ID del hook
       notes: '',
     });
     
@@ -109,8 +92,8 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     setErrors({});
     setError('');
     
-    console.log(`🔄 Formulario reiniciado con userId: ${currentUserId}`);
-  }, [movementType, getUserId]);
+    console.log(`🔄 Formulario reiniciado con userId: ${numericUserId}`);
+  }, [movementType, numericUserId]);
 
   const fetchProducts = useCallback(async (): Promise<void> => {
     try {
@@ -159,14 +142,20 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     }
   }, []);
 
+  // ✅ SIMPLIFICADO: Inicializar cuando se abre el modal
   useEffect(() => {
     if (isOpen) {
-      console.log('🔄 Modal abierto, cargando datos...');
       fetchProducts();
       fetchStores();
+    }
+  }, [isOpen, fetchProducts, fetchStores]);
+
+  // ✅ NUEVO: Resetear formulario cuando se obtenga el userId
+  useEffect(() => {
+    if (numericUserId > 0) {
       resetForm();
     }
-  }, [isOpen, fetchProducts, fetchStores, resetForm]);
+  }, [numericUserId, resetForm]);
 
   useEffect(() => {
     if (formData.productId && formData.productId !== 0) {
@@ -179,10 +168,9 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
-    // ✅ NUEVA VALIDACIÓN: Verificar que hay usuario logueado
-    const currentUserId = getUserId();
-    if (!currentUserId || currentUserId.trim() === '') {
-      newErrors.general = 'Debes estar logueado para realizar esta acción. Por favor, inicia sesión nuevamente.';
+    // ✅ VALIDACIÓN: Verificar que hay usuario numérico válido del hook
+    if (!numericUserId || numericUserId === 0) {
+      newErrors.general = 'Error: No se pudo obtener la información del usuario. Por favor, recarga la página.';
     }
 
     if (!formData.productId || formData.productId === 0) {
@@ -228,23 +216,19 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     setError('');
 
     try {
-      // ✅ CORREGIDO: Asegurar que se envía el userId correcto
-      const currentUserId = getUserId();
+      // ✅ VALIDACIÓN: Verificar userId numérico del hook antes de enviar
+      if (!numericUserId || numericUserId === 0) {
+        throw new Error('No se pudo obtener el ID del usuario. Por favor, recarga la página.');
+      }
+
       const movementData: InventoryMovementRequest = {
         ...formData,
-        userId: currentUserId
+        userId: numericUserId // ✅ USAR: ID numérico del hook
       };
 
       console.log('📤 Enviando datos del movimiento:', movementData);
 
-        // ✅ NUEVA VALIDACIÓN: Verificar antes de enviar
-      if (!currentUserId || currentUserId.trim() === '') {
-        throw new Error('No se pudo obtener el ID del usuario. Por favor, inicia sesión nuevamente.');
-      }
-
-      console.log('📤 Enviando datos del movimiento:', movementData);
-
-      await inventoryMovementAPI.createMovement(movementData as any); // Temporary cast while types are inconsistent
+      await inventoryMovementAPI.createMovement(movementData);
       success('Movimiento de inventario registrado correctamente');
       onSuccess();
       onClose();
@@ -260,7 +244,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
   };
 
   const handleInputChange = (
-    field: keyof (Omit<InventoryMovementRequest, 'userId'> & { userId: string }), 
+    field: keyof InventoryMovementRequest, 
     value: any
   ): void => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -269,7 +253,6 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     }
   };
 
-  // ✅ MEJORADO: Opciones usando las utilidades
   const productOptions: SelectOption[] = [
     { value: 0, label: 'Seleccionar producto...' },
     ...products.map((product: ProductResponse) => ({ 
@@ -290,7 +273,6 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     }))
   ];
 
-  // ✅ MEJORADO: Usar utilidad para motivos en español
   const reasonOptions: SelectOption[] = createMovementReasonOptions();
 
   const getMovementTitle = (): string => {
@@ -319,9 +301,8 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     }
   };
 
-  // ✅ NUEVA VALIDACIÓN: Verificar que el usuario esté logueado
-  const currentUserId = getUserId();
-  const isUserValid = currentUserId !== '' && currentUserId.trim() !== '';
+  // ✅ ESTADO: Validación del usuario usando el hook
+  const isUserValid = numericUserId > 0 && !loadingUserId;
 
   return (
     <Modal
@@ -334,18 +315,24 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
         {error && <Alert variant="error" onClose={() => setError('')}>{error}</Alert>}
         {errors.general && <Alert variant="error">{errors.general}</Alert>}
         
-        {/* ✅ NUEVA ALERTA: Si no hay usuario válido */}
-        {!isUserValid && (
+        {/* ✅ ALERTAS: Estado del usuario */}
+        {userError && <Alert variant="error">{userError}</Alert>}
+        {!isUserValid && loadingUserId && (
           <Alert variant="warning">
-            ⚠️ No se pudo obtener tu información de usuario. Por favor, recarga la página o inicia sesión nuevamente.
+            ⚠️ Cargando información del usuario...
+          </Alert>
+        )}
+        {!isUserValid && !loadingUserId && (
+          <Alert variant="error">
+            ❌ No se pudo cargar la información del usuario. Por favor, recarga la página.
           </Alert>
         )}
         
         <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
           <p className="text-sm text-blue-700">{getMovementDescription()}</p>
-          {user && (
+          {user && numericUserId > 0 && (
             <p className="text-xs text-blue-600 mt-1">
-              Usuario: {user.name} ({user.email}) - ID: {currentUserId}
+              Usuario: {user.name} ({user.email}) - Backend ID: {numericUserId}
             </p>
           )}
         </div>
@@ -354,9 +341,10 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
         {process.env.NODE_ENV === 'development' && (
           <div className="bg-gray-100 p-2 text-xs text-gray-600">
             <strong>Debug Info:</strong> 
-            User ID: {currentUserId} | 
+            Auth UUID: {user?.id} | 
+            Backend ID: {numericUserId} | 
+            Loading User: {loadingUserId} | 
             Stores: {stores.length} | 
-            Options: {storeOptions.length - 1} | 
             Products: {products.length}
             {loadingStores && <span className="text-blue-600"> (Cargando tiendas...)</span>}
           </div>
@@ -517,9 +505,11 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
           <Button
             type="submit"
             isLoading={loading}
-            disabled={loadingStores || !isUserValid}
+            disabled={loadingStores || !isUserValid || loadingUserId}
           >
-            {loadingStores ? 'Cargando...' : 'Registrar Movimiento'}
+            {loadingUserId ? 'Validando usuario...' : 
+             loadingStores ? 'Cargando...' : 
+             'Registrar Movimiento'}
           </Button>
         </div>
       </form>
