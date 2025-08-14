@@ -27,10 +27,10 @@ import {
   saleDetailAPI, 
   productAPI, 
   productBatchAPI,
-  inventoryMovementAPI 
+  inventoryMovementAPI
 } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
-import { useAuthNumericId } from '@/hooks/useAuthNumericId'; // ✅ AGREGADO
+import { useAuthNumericId } from '@/hooks/useAuthNumericId';
 import { AppError } from '@/lib/error-handler';
 
 interface SaleFormProps {
@@ -52,8 +52,8 @@ interface SaleItem {
   id?: number;
   productId: number;
   product?: ProductResponse;
-  batchId?: number; // ✅ AGREGADO
-  batch?: ProductBatchResponse; // ✅ AGREGADO
+  batchId?: number; // ✅ LOTES
+  batch?: ProductBatchResponse; // ✅ LOTES
   quantity: number;
   unitPrice: number;
   subtotal: number;
@@ -70,11 +70,6 @@ interface FormErrors {
   [key: string]: string;
 }
 
-// ✅ CORREGIDO: Interface para SaleRequest con userId numérico
-interface SaleRequestWithNumericId extends Omit<SaleRequest, 'userId'> {
-  userId: number;
-}
-
 export const SaleForm: React.FC<SaleFormProps> = ({
   isOpen,
   onClose,
@@ -85,8 +80,9 @@ export const SaleForm: React.FC<SaleFormProps> = ({
   users,
 }) => {
   const { user } = useAuth();
-  const { numericUserId, loading: loadingUserId, error: userError } = useAuthNumericId(); // ✅ AGREGADO
+  const { numericUserId, loading: loadingUserId, error: userError } = useAuthNumericId();
 
+  // ✅ FUNCIÓN formatCurrency ANTES de usarla
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('es-EC', {
       style: 'currency',
@@ -94,17 +90,18 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     }).format(amount || 0);
   };
 
-  // ✅ CORREGIDO: Usar número para userId
-  const [formData, setFormData] = useState<SaleRequestWithNumericId>({
+  const [formData, setFormData] = useState<SaleRequest>({
     saleNumber: '',
-    userId: 0, // ✅ Cambiado a número
+    userId: '',
     clientId: undefined,
     storeId: 0,
     saleType: SaleType.RETAIL,
+    subtotal: 0,
     discountPercentage: 0,
     discountAmount: 0,
     taxPercentage: 12,
     taxAmount: 0,
+    totalAmount: 0,
     paymentMethod: '',
     notes: '',
     isInvoiced: false,
@@ -112,7 +109,6 @@ export const SaleForm: React.FC<SaleFormProps> = ({
 
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [products, setProducts] = useState<ProductResponse[]>([]);
-  const [productBatches, setProductBatches] = useState<ProductBatchResponse[]>([]); // ✅ AGREGADO
   const [productStocks, setProductStocks] = useState<Map<number, number>>(new Map());
   const [loading, setLoading] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -123,15 +119,15 @@ export const SaleForm: React.FC<SaleFormProps> = ({
   const [showAddItem, setShowAddItem] = useState<boolean>(false);
   const [newItem, setNewItem] = useState<Partial<SaleItem>>({
     productId: 0,
-    batchId: undefined, // ✅ AGREGADO
+    batchId: undefined, // ✅ LOTES
     quantity: 1,
   });
-  const [availableBatches, setAvailableBatches] = useState<ProductBatchResponse[]>([]); // ✅ AGREGADO
+  const [availableBatches, setAvailableBatches] = useState<ProductBatchResponse[]>([]); // ✅ LOTES
   
   // Client form
   const [showClientForm, setShowClientForm] = useState<boolean>(false);
 
-  // ✅ FUNCIÓN mejorada para obtener stock real de un producto
+  // ✅ FUNCIÓN para obtener stock real de un producto
   const getProductStock = useCallback(async (productId: number): Promise<number> => {
     try {
       const batches = await productBatchAPI.getAllBatches();
@@ -150,27 +146,38 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     }
   }, []);
 
-  // ✅ NUEVO: Cargar lotes disponibles para un producto
+  // ✅ NUEVO: Cargar lotes disponibles para un producto FILTRADOS POR TIENDA
   const fetchBatchesForProduct = useCallback(async (productId: number): Promise<void> => {
     try {
       const batches = await productBatchAPI.getAllBatches();
-      const productBatches = batches.filter(batch => 
+      let productBatches = batches.filter(batch => 
         batch.product.id === productId && 
         batch.isActive && 
         batch.currentQuantity > 0
       );
+
+      // ✅ NUEVO: Filtrar por tienda seleccionada
+      if (formData.storeId > 0) {
+        productBatches = productBatches.filter(batch => 
+          batch.store?.id === formData.storeId
+        );
+      }
+
       setAvailableBatches(productBatches);
       
       // Si solo hay un lote, seleccionarlo automáticamente
       if (productBatches.length === 1) {
         setNewItem(prev => ({ ...prev, batchId: productBatches[0].id }));
+      } else if (productBatches.length === 0) {
+        setNewItem(prev => ({ ...prev, batchId: undefined }));
       }
     } catch (err) {
       console.error('Error fetching batches:', err);
       setAvailableBatches([]);
     }
-  }, []);
+  }, [formData.storeId]);
 
+  // ✅ CARGAR stocks de todos los productos
   const fetchProductStocks = useCallback(async (): Promise<void> => {
     try {
       const stockMap = new Map<number, number>();
@@ -187,21 +194,19 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     }
   }, [products, getProductStock]);
 
-  // ✅ CORREGIDO: Usar numericUserId en resetForm
   const resetForm = useCallback((): void => {
-    // Si tenemos el ID numérico del usuario logueado, usarlo por defecto
-    const defaultUserId = numericUserId > 0 ? numericUserId : 0;
-    
     setFormData({
       saleNumber: '',
-      userId: defaultUserId, // ✅ Usar ID del usuario logueado por defecto
+      userId: numericUserId > 0 ? numericUserId.toString() : '', // ✅ Usuario autenticado por defecto
       clientId: undefined,
       storeId: 0,
       saleType: SaleType.RETAIL,
+      subtotal: 0,
       discountPercentage: 0,
       discountAmount: 0,
       taxPercentage: 12,
       taxAmount: 0,
+      totalAmount: 0,
       paymentMethod: '',
       notes: '',
       isInvoiced: false,
@@ -227,10 +232,13 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     }
   }, []);
 
+  // ✅ CORREGIDO: Cargar detalles de venta con lotes
   const loadSaleItems = useCallback(async (saleId: number): Promise<void> => {
     try {
       const sale = await saleAPI.getSaleById(saleId);
-      if (sale.saleDetails) {
+      console.log('🔍 Sale data loaded:', sale);
+      
+      if (sale.saleDetails && sale.saleDetails.length > 0) {
         const items: SaleItem[] = [];
         
         for (const detail of sale.saleDetails) {
@@ -249,9 +257,14 @@ export const SaleForm: React.FC<SaleFormProps> = ({
         }
         
         setSaleItems(items);
+        console.log('✅ Items de venta cargados:', items);
+      } else {
+        console.log('⚠️ No sale details found or empty array');
+        setSaleItems([]);
       }
     } catch (err) {
-      console.error('Error loading sale items:', err);
+      console.error('❌ Error loading sale items:', err);
+      setSaleItems([]);
     }
   }, [getProductStock]);
 
@@ -263,14 +276,16 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       if (editingSale) {
         setFormData({
           saleNumber: editingSale.saleNumber,
-          userId: editingSale.user.id, // Ya es numérico del backend
+          userId: editingSale.user.id.toString(),
           clientId: editingSale.client?.id,
           storeId: editingSale.store.id,
           saleType: editingSale.saleType,
+          subtotal: Number(editingSale.subtotal),
           discountPercentage: Number(editingSale.discountPercentage),
           discountAmount: Number(editingSale.discountAmount),
           taxPercentage: Number(editingSale.taxPercentage),
           taxAmount: Number(editingSale.taxAmount),
+          totalAmount: Number(editingSale.totalAmount),
           paymentMethod: editingSale.paymentMethod || '',
           notes: editingSale.notes || '',
           isInvoiced: editingSale.isInvoiced,
@@ -282,13 +297,12 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     }
   }, [isOpen, editingSale, fetchProducts, loadSaleItems, resetForm]);
 
-  // ✅ NUEVO: Actualizar userId cuando se obtenga el ID numérico
+  // ✅ NUEVO: Actualizar userId cuando se obtenga del hook
   useEffect(() => {
-    if (numericUserId > 0 && !editingSale && formData.userId === 0) {
-      // Solo establecer si no hay un usuario ya seleccionado
-      setFormData(prev => ({ ...prev, userId: numericUserId }));
+    if (numericUserId > 0 && !editingSale) {
+      setFormData(prev => ({ ...prev, userId: numericUserId.toString() }));
     }
-  }, [numericUserId, editingSale, formData.userId]);
+  }, [numericUserId, editingSale]);
 
   // ✅ Cargar lotes cuando se seleccione un producto
   useEffect(() => {
@@ -300,7 +314,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     }
   }, [newItem.productId, fetchBatchesForProduct]);
 
-  // Cargar stocks cuando cambien los productos
+  // ✅ Cargar stocks cuando cambien los productos
   useEffect(() => {
     if (products.length > 0) {
       fetchProductStocks();
@@ -313,9 +327,10 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     if (!formData.saleNumber.trim()) {
       newErrors.saleNumber = 'El número de venta es requerido';
     }
-  if (!formData.userId || formData.userId === 0) {
-    newErrors.userId = 'Debe seleccionar un vendedor';
-  }
+
+    if (!formData.userId || formData.userId.trim() === '') {
+      newErrors.userId = 'Debe seleccionar un vendedor';
+    }
 
     if (!formData.storeId || formData.storeId === 0) {
       newErrors.storeId = 'La tienda es requerida';
@@ -341,6 +356,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  // ✅ VALIDACIÓN mejorada con lotes
   const validateNewItem = async (): Promise<boolean> => {
     const newErrors: FormErrors = {};
 
@@ -352,7 +368,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       newErrors.newItemQuantity = 'La cantidad debe ser mayor a 0';
     }
 
-    // ✅ MEJORADO: Validación de stock con lote específico
+    // ✅ VALIDACIÓN DE STOCK con lotes
     if (newItem.productId && newItem.quantity) {
       if (newItem.batchId) {
         // Si se seleccionó un lote específico
@@ -403,7 +419,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     const quantity = newItem.quantity || 1;
     const subtotal = unitPrice * quantity;
     
-    // ✅ MEJORADO: Obtener información del lote
+    // ✅ INFORMACIÓN del lote
     const selectedBatch = availableBatches.find(b => b.id === newItem.batchId);
     const availableStock = selectedBatch 
       ? selectedBatch.currentQuantity 
@@ -442,7 +458,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     const item = saleItems[index];
     if (!item) return;
 
-    // Validar stock al actualizar cantidad
+    // ✅ VALIDAR STOCK al actualizar cantidad
     const availableStock = item.batch 
       ? item.batch.currentQuantity 
       : (productStocks.get(item.productId) || 0);
@@ -463,20 +479,20 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     setError('');
   };
 
-  // ✅ CORREGIDO: Crear movimientos de inventario con fromStoreId y batchId
+  // ✅ CREAR movimientos de inventario con lotes
   const createInventoryMovements = async (saleId: number): Promise<void> => {
-    if (!formData.userId || formData.userId === 0) return;
+    if (!formData.userId) return;
 
     for (const item of saleItems) {
       try {
         const movementData: InventoryMovementRequest = {
           productId: item.productId,
-          batchId: item.batchId, // ✅ AGREGADO: Incluir lote específico
-          fromStoreId: formData.storeId, // ✅ CORREGIDO: usar fromStoreId para salidas
+          batchId: item.batchId, // ✅ INCLUIR lote específico
+          fromStoreId: formData.storeId,
           movementType: MovementType.OUT,
           quantity: item.quantity,
           reason: MovementReason.SALE,
-          userId: formData.userId, // Ya es numérico
+          userId: formData.userId,
           referenceId: saleId,
           referenceType: 'SALE',
           notes: `Venta #${formData.saleNumber}`
@@ -500,7 +516,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     setError('');
 
     try {
-      // Validación final de stock para todos los items
+      // ✅ VALIDACIÓN FINAL DE STOCK para todos los items
       for (const item of saleItems) {
         const availableStock = item.batch 
           ? item.batch.currentQuantity 
@@ -518,23 +534,17 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       const taxAmount = taxableAmount * (formData.taxPercentage / 100);
       const totalAmount = taxableAmount + taxAmount;
 
-      // ✅ CORREGIDO: Preparar datos de venta con todos los campos
-      const saleData: any = {
-        saleNumber: formData.saleNumber.trim(),
-        userId: formData.userId, // Ya es numérico
-        storeId: formData.storeId,
-        saleType: formData.saleType,
+      // ✅ PREPARAR datos de venta
+      const saleData: SaleRequest = {
+        ...formData,
+        userId: formData.userId,
         subtotal: Number(subtotal.toFixed(2)),
-        discountPercentage: Number(formData.discountPercentage),
         discountAmount: Number(discountAmount.toFixed(2)),
-        taxPercentage: Number(formData.taxPercentage),
         taxAmount: Number(taxAmount.toFixed(2)),
         totalAmount: Number(totalAmount.toFixed(2)),
-        paymentMethod: formData.paymentMethod?.trim() || '',
-        notes: formData.notes?.trim() || '',
-        isInvoiced: Boolean(formData.isInvoiced),
       };
 
+      // ✅ Solo incluir clientId si tiene valor
       if (formData.clientId && formData.clientId > 0) {
         saleData.clientId = formData.clientId;
       }
@@ -548,12 +558,12 @@ export const SaleForm: React.FC<SaleFormProps> = ({
         savedSale = await saleAPI.createSale(saleData);
       }
 
-      // ✅ MEJORADO: Guardar detalles con batchId
+      // ✅ GUARDAR detalles con batchId
       for (const item of saleItems) {
         const saleDetailData: SaleDetailRequest = {
           saleId: savedSale.id,
           productId: item.productId,
-          batchId: item.batchId, // ✅ AGREGADO
+          batchId: item.batchId, // ✅ INCLUIR batchId
           quantity: item.quantity,
         };
 
@@ -564,18 +574,13 @@ export const SaleForm: React.FC<SaleFormProps> = ({
         }
       }
 
-      // Crear movimientos de inventario solo para ventas nuevas
+      // ✅ CREAR movimientos de inventario solo para ventas nuevas
       if (!editingSale) {
         try {
           await createInventoryMovements(savedSale.id);
         } catch (invError) {
           console.error('Error al actualizar inventario:', invError);
-          setError(`Venta guardada exitosamente, pero hubo un error al actualizar el inventario: ${invError instanceof Error ? invError.message : 'Error desconocido'}. Por favor, actualice el inventario manualmente.`);
-          setTimeout(() => {
-            onSuccess();
-            handleModalClose();
-          }, 5000);
-          return;
+          setError(`Venta guardada exitosamente, pero hubo un error al actualizar el inventario: ${invError instanceof Error ? invError.message : 'Error desconocido'}`);
         }
       }
 
@@ -606,7 +611,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     }
   };
 
-  const handleInputChange = (field: keyof SaleRequestWithNumericId, value: string | number | boolean | undefined): void => {
+  const handleInputChange = (field: keyof SaleRequest, value: string | number | boolean | undefined): void => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
@@ -635,15 +640,6 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     ...clients.map(client => ({ value: client.id, label: client.nameLastname }))
   ];
 
-  // ✅ AGREGADO: Opciones de vendedores
-const userOptions: SelectOption[] = [
-  { value: 0, label: 'Seleccionar vendedor...' },
-  ...users.filter(u => u.isActive).map(userItem => ({ 
-    value: userItem.id, 
-    label: `${userItem.name} (${userItem.role})${userItem.id === numericUserId ? ' - Usuario Actual' : ''}` 
-  }))
-];
-
   const productOptions: SelectOption[] = [
     { value: 0, label: 'Seleccionar producto...' },
     ...products.map(product => {
@@ -655,18 +651,34 @@ const userOptions: SelectOption[] = [
     })
   ];
 
-  // ✅ AGREGADO: Opciones de lotes
-  const batchOptions: SelectOption[] = [
-    { value: '', label: availableBatches.length === 0 ? 'Sin lotes disponibles' : 'Seleccionar lote (opcional)...' },
-    ...availableBatches.map(batch => ({ 
-      value: batch.id, 
-      label: `${batch.batchCode} - Stock: ${batch.currentQuantity} - Vence: ${new Date(batch.expirationDate).toLocaleDateString()}` 
-    }))
+  // ✅ NUEVO: Opciones de método de pago
+  const paymentMethodOptions: SelectOption[] = [
+    { value: '', label: 'Seleccionar método de pago...' },
+    { value: 'Efectivo', label: 'Efectivo' },
+    { value: 'Tarjeta de Crédito', label: 'Tarjeta de Crédito' },
+    { value: 'Tarjeta de Débito', label: 'Tarjeta de Débito' },
+    { value: 'Transferencia', label: 'Transferencia Bancaria' },
+    { value: 'Cheque', label: 'Cheque' },
+    { value: 'Mixto', label: 'Pago Mixto' },
+  ];
+
+  const userOptions: SelectOption[] = [
+    { value: '', label: 'Seleccionar vendedor...' },
+    ...users.map(user => ({ value: user.id, label: `${user.name} (${user.email})` }))
   ];
 
   const saleTypeOptions: SelectOption[] = [
     { value: SaleType.RETAIL, label: 'Venta al Detalle' },
     { value: SaleType.WHOLESALE, label: 'Venta al Por Mayor' },
+  ];
+
+  // ✅ OPCIONES de lotes disponibles
+  const batchOptions: SelectOption[] = [
+    { value: '', label: 'Sin lote específico (se tomará el más antiguo)' },
+    ...availableBatches.map(batch => ({ 
+      value: batch.id.toString(), 
+      label: `${batch.batchCode} (Disponible: ${batch.currentQuantity})` 
+    }))
   ];
 
   // Calcular totales para mostrar
@@ -688,13 +700,11 @@ const userOptions: SelectOption[] = [
           <div className="text-sm text-gray-500">
             {item.product?.flavor} - {item.product?.size}
           </div>
-          {/* ✅ AGREGADO: Mostrar lote */}
-          <div className="text-xs text-blue-600">
-            {item.batch ? `Lote: ${item.batch.batchCode}` : 'Sin lote específico'}
-          </div>
-          <div className="text-xs text-gray-600">
-            Stock disponible: {item.availableStock}
-          </div>
+          {item.batch && (
+            <div className="text-xs text-blue-600">
+              Lote: {item.batch.batchCode} (Stock: {item.batch.currentQuantity})
+            </div>
+          )}
         </div>
       ),
     },
@@ -716,12 +726,20 @@ const userOptions: SelectOption[] = [
     {
       key: 'unitPrice',
       header: 'Precio Unit.',
-      render: (value) => formatCurrency(value as number),
+      render: (value) => (
+        <span className="text-gray-700 font-medium">
+          {formatCurrency(value as number)}
+        </span>
+      ),
     },
     {
       key: 'subtotal',
       header: 'Subtotal',
-      render: (value) => formatCurrency(value as number),
+      render: (value) => (
+        <span className="text-gray-700 font-medium">
+          {formatCurrency(value as number)}
+        </span>
+      ),
     },
     {
       key: 'actions',
@@ -738,8 +756,7 @@ const userOptions: SelectOption[] = [
     },
   ];
 
-  // ✅ Validación del usuario
-  const isUserValid = numericUserId > 0 && !loadingUserId;
+  const isUserValid = formData.userId && formData.userId.trim() !== '';
 
   return (
     <Modal
@@ -751,17 +768,9 @@ const userOptions: SelectOption[] = [
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && <Alert variant="error">{error}</Alert>}
         {errors.userId && <Alert variant="error">{errors.userId}</Alert>}
-        
-        {/* ✅ Alertas del usuario */}
-        {userError && <Alert variant="error">{userError}</Alert>}
-        {!isUserValid && loadingUserId && (
-          <Alert variant="warning">
-            ⚠️ Cargando información del usuario...
-          </Alert>
-        )}
 
         {/* Información básica de la venta */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input
             label="Número de Venta*"
             value={formData.saleNumber}
@@ -771,16 +780,13 @@ const userOptions: SelectOption[] = [
             placeholder="Ej: SALE-001"
           />
 
-          {/* ✅ AGREGADO: Campo de vendedor */}
           <Select
             label="Vendedor*"
             value={formData.userId}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
-              handleInputChange('userId', parseInt(e.target.value) || 0)}
+              handleInputChange('userId', e.target.value)}
             options={userOptions}
             error={errors.userId}
-            // Permitir cambiar vendedor, pero no cuando está editando
-            disabled={false}
           />
 
           <Select
@@ -800,28 +806,16 @@ const userOptions: SelectOption[] = [
             options={saleTypeOptions}
           />
 
-          <Input
+          {/* ✅ NUEVO: Método de pago como dropdown */}
+          <Select
             label="Método de Pago*"
             value={formData.paymentMethod}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
               handleInputChange('paymentMethod', e.target.value)}
+            options={paymentMethodOptions}
             error={errors.paymentMethod}
-            placeholder="Efectivo, Tarjeta, etc."
+            className="md:col-span-2"
           />
-
-          {/* ✅ MEJORADO: Checkbox de facturación */}
-          <div className="flex items-center">
-            <label className="flex items-center text-sm font-medium text-gray-700">
-              <input
-                type="checkbox"
-                checked={formData.isInvoiced}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-                  handleInputChange('isInvoiced', e.target.checked)}
-                className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              ¿Facturar esta venta?
-            </label>
-          </div>
         </div>
 
         {/* Cliente */}
@@ -851,10 +845,17 @@ const userOptions: SelectOption[] = [
             <Button
               type="button"
               onClick={() => setShowAddItem(true)}
+              disabled={!formData.storeId || formData.storeId === 0}
             >
               + Agregar Producto
             </Button>
           </div>
+
+          {!formData.storeId && (
+            <Alert variant="warning">
+              Selecciona una tienda primero para poder agregar productos
+            </Alert>
+          )}
 
           {errors.items && <Alert variant="error">{errors.items}</Alert>}
 
@@ -894,7 +895,7 @@ const userOptions: SelectOption[] = [
                 error={errors.newItemProduct}
               />
 
-              {/* ✅ AGREGADO: Selección de lote */}
+              {/* ✅ SELECCIÓN de lote (solo si hay lotes disponibles) */}
               {availableBatches.length > 0 && (
                 <Select
                   label="Lote (Opcional - Si no selecciona, se tomará el más antiguo)"
@@ -903,6 +904,12 @@ const userOptions: SelectOption[] = [
                     setNewItem(prev => ({ ...prev, batchId: e.target.value ? parseInt(e.target.value) : undefined }))}
                   options={batchOptions}
                 />
+              )}
+
+              {availableBatches.length === 0 && newItem.productId > 0 && (
+                <Alert variant="warning">
+                  No hay lotes disponibles para este producto en la tienda seleccionada
+                </Alert>
               )}
 
               <Input
@@ -919,17 +926,14 @@ const userOptions: SelectOption[] = [
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => {
-                    setShowAddItem(false);
-                    setNewItem({ productId: 0, batchId: undefined, quantity: 1 });
-                    setAvailableBatches([]);
-                  }}
+                  onClick={() => setShowAddItem(false)}
                 >
                   Cancelar
                 </Button>
                 <Button
                   type="button"
                   onClick={addItemToSale}
+                  disabled={!newItem.productId || availableBatches.length === 0}
                 >
                   Agregar
                 </Button>
@@ -941,7 +945,7 @@ const userOptions: SelectOption[] = [
         {/* Totales */}
         {saleItems.length > 0 && (
           <div className="border-t pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <Input
                 label="Descuento (%)"
                 type="number"
@@ -965,25 +969,38 @@ const userOptions: SelectOption[] = [
                   handleInputChange('taxPercentage', parseFloat(e.target.value) || 0)}
                 error={errors.taxPercentage}
               />
+
+              <div className="flex items-center">
+                <label className="flex items-center text-sm font-medium text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={formData.isInvoiced}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                      handleInputChange('isInvoiced', e.target.checked)}
+                    className="mr-2"
+                  />
+                  ¿Facturar?
+                </label>
+              </div>
             </div>
 
             <div className="bg-gray-50 p-4 rounded-lg">
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span>{formatCurrency(subtotal)}</span>
+                  <span className="text-gray-700">Subtotal:</span>
+                  <span className="text-gray-700 font-medium">{formatCurrency(subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Descuento:</span>
-                  <span>-{formatCurrency(discountAmount)}</span>
+                  <span className="text-gray-700">Descuento:</span>
+                  <span className="text-gray-700 font-medium">-{formatCurrency(discountAmount)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Impuesto:</span>
-                  <span>{formatCurrency(taxAmount)}</span>
+                  <span className="text-gray-700">Impuesto:</span>
+                  <span className="text-gray-700 font-medium">{formatCurrency(taxAmount)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-lg border-t pt-2">
-                  <span>Total:</span>
-                  <span>{formatCurrency(totalAmount)}</span>
+                  <span className="text-gray-800">Total:</span>
+                  <span className="text-gray-800">{formatCurrency(totalAmount)}</span>
                 </div>
               </div>
             </div>
@@ -1000,7 +1017,7 @@ const userOptions: SelectOption[] = [
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => 
               handleInputChange('notes', e.target.value)}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
             placeholder="Observaciones adicionales sobre la venta..."
           />
         </div>
@@ -1017,10 +1034,9 @@ const userOptions: SelectOption[] = [
           </Button>
           <Button
             type="submit"
-            disabled={submitting || (!isUserValid && !editingSale) || saleItems.length === 0 || loadingUserId}
+            disabled={submitting || !isUserValid || saleItems.length === 0}
           >
-            {loadingUserId ? 'Validando usuario...' :
-             submitting ? 'Guardando...' : 
+            {submitting ? 'Guardando...' : 
              (editingSale ? 'Actualizar Venta' : 'Crear Venta')}
           </Button>
         </div>
