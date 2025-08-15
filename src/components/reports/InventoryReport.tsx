@@ -1,4 +1,4 @@
-// src/components/reports/InventoryReport.tsx (ACTUALIZADO - USAR REPORTS API)
+// src/components/reports/InventoryReport.tsx - CORREGIDO
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -44,8 +44,8 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
           storeAPI.getAllStores(),
           categoryAPI.getAllCategories()
         ]);
-        setStores(storesData);
-        setCategories(categoriesData);
+        setStores(storesData || []);
+        setCategories(categoriesData || []);
       } catch (error) {
         console.error('Error loading initial data:', error);
       }
@@ -54,7 +54,7 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
     loadInitialData();
   }, []);
 
-  // ✅ NUEVO: Usar endpoint directo de reports
+  // Generar reporte usando endpoint directo de reports
   const generateReport = useCallback(async (): Promise<void> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
@@ -94,98 +94,171 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
   const handleExport = (): void => {
     if (!state.data) return;
 
-    // ✅ USAR: Helper del reportsService
     const csvData = reportsService.formatInventoryReportForCSV(state.data);
     reportsService.exportToCSV(csvData, 'reporte-inventario');
+  };
+
+  // ✅ CORREGIDO: Validación de datos y alertas calculadas
+  const alertsData = state.data?.stockAlerts || {
+    lowStock: 0,
+    outOfStock: 0,
+    critical: 0,
+    expiringSoon: 0
   };
 
   const summaryCards = state.data ? [
     {
       title: 'Total Productos',
-      value: state.data.totalProducts.toString(),
+      value: formatters.number(state.data.totalProducts || 0),
       icon: '📦',
       variant: 'primary' as const
     },
     {
       title: 'Stock Bajo',
-      value: state.data.lowStockProducts.toString(),
+      value: formatters.number(alertsData.lowStock || 0),
       icon: '⚠️',
       variant: 'warning' as const
     },
     {
-      title: 'Vencidos',
-      value: state.data.expiredProducts.toString(),
+      title: 'Sin Stock',
+      value: formatters.number(alertsData.outOfStock || 0),
       icon: '❌',
       variant: 'danger' as const
     },
     {
       title: 'Valor Total',
-      value: formatters.currency(state.data.totalStockValue),
+      value: formatters.currency(state.data.totalValue || 0),
       icon: '💎',
       variant: 'success' as const
     }
   ] : [];
 
+  // ✅ CORREGIDO: Columnas con colores mejorados
   const storeColumns = [
     { 
       key: 'storeName', 
       header: 'Tienda',
-      render: (value: string) => <span className='text-gray-800'>{value}</span>
+      render: (value: string) => <span className='text-gray-700 font-medium'>{value || 'N/A'}</span>
     },
     { 
-      key: 'productsCount', 
+      key: 'productCount', 
       header: 'Productos',
-      render: (value: number) => <span className='text-gray-800'>{value}</span>
+      render: (value: number) => <span className='text-gray-700'>{formatters.number(value || 0)}</span>
     },
     { 
       key: 'totalStock', 
       header: 'Stock Total',
-      render: (value: number) => <span className='text-gray-800'>{value}</span>
+      render: (value: number) => <span className='text-gray-700'>{formatters.number(value || 0)}</span>
     },
     { 
-      key: 'stockValue', 
+      key: 'totalValue', 
       header: 'Valor Stock',
-      render: (value: number) => <span className='text-gray-800'>{formatters.currency(value)}</span>
+      render: (value: number) => <span className='text-gray-700 font-medium'>{formatters.currency(value || 0)}</span>
     }
   ];
 
-  const rotationColumns = [
+  const categoryColumns = [
+    { 
+      key: 'categoryName', 
+      header: 'Categoría',
+      render: (value: string) => <span className='text-gray-700 font-medium'>{value || 'N/A'}</span>
+    },
+    { 
+      key: 'productCount', 
+      header: 'Productos',
+      render: (value: number) => <span className='text-gray-700'>{formatters.number(value || 0)}</span>
+    },
+    { 
+      key: 'totalStock', 
+      header: 'Stock Total',
+      render: (value: number) => <span className='text-gray-700'>{formatters.number(value || 0)}</span>
+    },
+    { 
+      key: 'totalValue', 
+      header: 'Valor Stock',
+      render: (value: number) => <span className='text-gray-700 font-medium'>{formatters.currency(value || 0)}</span>
+    }
+  ];
+
+  const lowStockColumns = [
     { 
       key: 'productName', 
       header: 'Producto', 
-      render: (value: string) => <span className='text-gray-800'>{value}</span> 
+      render: (value: string) => <span className='text-gray-700 font-medium'>{value || 'N/A'}</span> 
+    },
+    { 
+      key: 'productCode', 
+      header: 'Código', 
+      render: (value: string) => <span className='text-gray-700'>{value || 'N/A'}</span> 
+    },
+    { 
+      key: 'storeName', 
+      header: 'Tienda', 
+      render: (value: string) => <span className='text-gray-700'>{value || 'N/A'}</span> 
     },
     { 
       key: 'currentStock', 
       header: 'Stock Actual',
-      render: (value: number) => <span className='text-gray-800'>{value}</span> 
+      render: (value: number) => <span className='text-gray-700'>{formatters.number(value || 0)}</span> 
     },
     { 
       key: 'minStockLevel', 
       header: 'Stock Mínimo', 
-      render: (value: number) => <span className='text-gray-800'>{value}</span> 
+      render: (value: number) => <span className='text-gray-700'>{formatters.number(value || 0)}</span> 
     },
     { 
-      key: 'status', 
-      header: 'Estado',
-      render: (value: string) => <StatusBadge status={value} />
-    },
-    { 
-      key: 'daysOfStock', 
-      header: 'Días de Stock',
-      render: (value: number) => <span className='text-gray-700'>{value} días</span>
+      key: 'alertLevel', 
+      header: 'Nivel',
+      render: (value: string) => {
+        const variants = {
+          'LOW': 'warning' as const,
+          'CRITICAL': 'danger' as const,
+          'OUT_OF_STOCK': 'danger' as const
+        };
+        return (
+          <Badge variant={variants[value as keyof typeof variants] || 'warning'}>
+            {value === 'LOW' ? 'Bajo' : value === 'CRITICAL' ? 'Crítico' : value === 'OUT_OF_STOCK' ? 'Sin Stock' : value}
+          </Badge>
+        );
+      }
     }
   ];
 
-  const expiredColumns = [
-    { key: 'batchCode', header: 'Código Lote' },
-    { key: 'productName', header: 'Producto' },
+  const expiringBatchesColumns = [
+    { 
+      key: 'batchCode', 
+      header: 'Código Lote',
+      render: (value: string) => <span className='text-gray-700 font-medium'>{value || 'N/A'}</span>
+    },
+    { 
+      key: 'productName', 
+      header: 'Producto',
+      render: (value: string) => <span className='text-gray-700'>{value || 'N/A'}</span>
+    },
+    { 
+      key: 'storeName', 
+      header: 'Tienda',
+      render: (value: string) => <span className='text-gray-700'>{value || 'N/A'}</span>
+    },
     { 
       key: 'expirationDate', 
       header: 'Fecha Vencimiento',
-      render: (value: string) => formatters.date(value)
+      render: (value: string) => <span className='text-gray-700'>{formatters.date(value)}</span>
     },
-    { key: 'quantity', header: 'Cantidad' }
+    { 
+      key: 'daysUntilExpiration', 
+      header: 'Días Restantes',
+      render: (value: number) => {
+        const days = value || 0;
+        const color = days <= 7 ? 'text-red-600' : days <= 30 ? 'text-yellow-600' : 'text-gray-700';
+        return <span className={color + ' font-medium'}>{days} días</span>;
+      }
+    },
+    { 
+      key: 'currentQuantity', 
+      header: 'Cantidad',
+      render: (value: number) => <span className='text-gray-700'>{formatters.number(value || 0)}</span>
+    }
   ];
 
   const tabsData = [
@@ -203,6 +276,36 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
               </Card>
             ))}
           </div>
+
+          {/* ✅ NUEVO: Resumen de alertas visual */}
+          <Card title="Estado General del Inventario">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-green-50 border border-green-200 rounded">
+                <div className="text-lg font-bold text-green-600">
+                  {formatters.number((state.data?.totalProducts || 0) - (alertsData.lowStock || 0) - (alertsData.outOfStock || 0))}
+                </div>
+                <div className="text-xs text-gray-600">Stock Normal</div>
+              </div>
+              <div className="text-center p-3 bg-yellow-50 border border-yellow-200 rounded">
+                <div className="text-lg font-bold text-yellow-600">
+                  {formatters.number(alertsData.lowStock || 0)}
+                </div>
+                <div className="text-xs text-gray-600">Stock Bajo</div>
+              </div>
+              <div className="text-center p-3 bg-red-50 border border-red-200 rounded">
+                <div className="text-lg font-bold text-red-600">
+                  {formatters.number(alertsData.critical || 0)}
+                </div>
+                <div className="text-xs text-gray-600">Crítico</div>
+              </div>
+              <div className="text-center p-3 bg-orange-50 border border-orange-200 rounded">
+                <div className="text-lg font-bold text-orange-600">
+                  {formatters.number(alertsData.expiringSoon || 0)}
+                </div>
+                <div className="text-xs text-gray-600">Por Vencer</div>
+              </div>
+            </div>
+          </Card>
         </div>
       )
     },
@@ -218,24 +321,35 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
       )
     },
     {
-      id: 'rotation',
-      label: 'Rotación',
+      id: 'categories',
+      label: 'Por Categoría',
       content: (
         <Table
-          data={state.data?.productRotation || []}
-          columns={rotationColumns}
-          emptyMessage="No hay datos de rotación de productos"
+          data={state.data?.inventoryByCategory || []}
+          columns={categoryColumns}
+          emptyMessage="No hay datos de inventario por categoría"
         />
       )
     },
     {
-      id: 'expired',
-      label: 'Vencidos',
+      id: 'low-stock',
+      label: 'Stock Bajo',
       content: (
         <Table
-          data={state.data?.expiredBatches || []}
-          columns={expiredColumns}
-          emptyMessage="No hay productos vencidos"
+          data={state.data?.lowStockProducts || []}
+          columns={lowStockColumns}
+          emptyMessage="No hay productos con stock bajo"
+        />
+      )
+    },
+    {
+      id: 'expiring',
+      label: 'Por Vencer',
+      content: (
+        <Table
+          data={state.data?.expiringBatches || []}
+          columns={expiringBatchesColumns}
+          emptyMessage="No hay lotes próximos a vencer"
         />
       )
     }
@@ -295,15 +409,18 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
       )}
 
       {/* Alertas importantes */}
-      {state.data && (state.data.lowStockProducts > 0 || state.data.expiredProducts > 0) && (
+      {state.data && ((alertsData.lowStock || 0) > 0 || (alertsData.outOfStock || 0) > 0 || (alertsData.expiringSoon || 0) > 0) && (
         <Alert variant="warning">
-          <div>
+          <div className="text-gray-700">
             <strong>Atención Requerida:</strong>
-            {state.data.lowStockProducts > 0 && (
-              <span> {state.data.lowStockProducts} productos con stock bajo.</span>
+            {(alertsData.lowStock || 0) > 0 && (
+              <span> {alertsData.lowStock} productos con stock bajo.</span>
             )}
-            {state.data.expiredProducts > 0 && (
-              <span> {state.data.expiredProducts} productos vencidos.</span>
+            {(alertsData.outOfStock || 0) > 0 && (
+              <span> {alertsData.outOfStock} productos sin stock.</span>
+            )}
+            {(alertsData.expiringSoon || 0) > 0 && (
+              <span> {alertsData.expiringSoon} lotes próximos a vencer.</span>
             )}
           </div>
         </Alert>
@@ -319,7 +436,12 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
       {/* Mensaje inicial */}
       {!state.data && !state.loading && !state.error && (
         <div className="text-center py-8">
-          <p className="text-gray-500">Selecciona los filtros y haz clic en "Generar Reporte" para comenzar.</p>
+          <div className="text-4xl mb-4">📦</div>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Reporte de Inventario</h3>
+          <p className="text-gray-500 mb-4">Selecciona los filtros y haz clic en "Generar Reporte" para comenzar.</p>
+          <p className="text-sm text-gray-400">
+            Este reporte incluye análisis de stock, alertas y productos próximos a vencer.
+          </p>
         </div>
       )}
     </div>

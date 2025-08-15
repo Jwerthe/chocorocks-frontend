@@ -1,4 +1,4 @@
-// src/components/inventory/InventoryList.tsx (ACTUALIZADO)
+// src/components/inventory/InventoryList.tsx (ACTUALIZADO CON 3 TABS)
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -13,6 +13,7 @@ import { BackendErrorHandler } from '../common/BackendErrorHandler';
 import { ProductBatchForm } from './ProductBatchForm';
 import { InventoryMovementForm } from './InventoryMovementForm';
 import { InventoryMovementsList } from './InventoryMovementsList';
+import { ProductStoreList } from './ProductStoreList';
 import { 
   ProductBatchResponse, 
   StoreResponse, 
@@ -23,10 +24,11 @@ import {
 import { productBatchAPI, storeAPI, productAPI, ApiError } from '@/services/api';
 import { useNotification } from '@/hooks/useNotification';
 
-// Enum para las tabs
+// ✅ ENUM ACTUALIZADO: Agregada tab STOCK
 enum InventoryTab {
   BATCHES = 'batches',
-  MOVEMENTS = 'movements'
+  MOVEMENTS = 'movements',
+  STOCK = 'stock'
 }
 
 export const InventoryList: React.FC = () => {
@@ -339,19 +341,19 @@ export const InventoryList: React.FC = () => {
           >
             Editar
           </Button>
-          <Button
+          {/* <Button
             size="sm"
             variant="danger"
             onClick={() => handleDeleteBatch(row)}
           >
             Eliminar
-          </Button>
+          </Button> */}
         </div>
       ),
     },
   ];
 
-  // ✅ COMPONENTE DE TABS
+  // ✅ COMPONENTE DE TABS ACTUALIZADO
   const renderTabButton = (tab: InventoryTab, label: string, icon: React.ReactNode) => (
     <button
       key={tab}
@@ -375,6 +377,7 @@ export const InventoryList: React.FC = () => {
           <p className="text-gray-600 mt-1">Control de lotes, stock y movimientos de inventario</p>
         </div>
         <div className="flex space-x-3">
+          {/* ✅ COMENTADO: Solo transferencias habilitadas por ahora
           <Button
             variant="success"
             onClick={() => openMovementForm(MovementType.IN)}
@@ -387,6 +390,7 @@ export const InventoryList: React.FC = () => {
           >
             - Salida
           </Button>
+          */}
           <Button
             variant="outline"
             onClick={() => openMovementForm(MovementType.TRANSFER)}
@@ -408,7 +412,7 @@ export const InventoryList: React.FC = () => {
         />
       )}
 
-      {/* ✅ TABS DE NAVEGACIÓN */}
+      {/* ✅ TABS DE NAVEGACIÓN - ACTUALIZADAS CON 3 TABS */}
       <Card>
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
@@ -426,10 +430,18 @@ export const InventoryList: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8z" />
               </svg>
             )}
+            {/* ✅ NUEVA TAB AGREGADA */}
+            {renderTabButton(
+              InventoryTab.STOCK,
+              'Stock por Tienda',
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M9 5v6m6-6v6" />
+              </svg>
+            )}
           </nav>
         </div>
 
-        {/* ✅ CONTENIDO DE LAS TABS */}
+        {/* ✅ CONTENIDO DE LAS TABS - ACTUALIZADO CON 3 OPCIONES */}
         <div className="p-6">
           {activeTab === InventoryTab.BATCHES ? (
             <div className="space-y-6">
@@ -514,9 +526,12 @@ export const InventoryList: React.FC = () => {
                 />
               </div>
             </div>
-          ) : (
+          ) : activeTab === InventoryTab.MOVEMENTS ? (
             /* ✅ TAB DE MOVIMIENTOS */
             <InventoryMovementsList />
+          ) : (
+            /* ✅ NUEVA TAB DE STOCK POR TIENDA */
+            <ProductStoreList />
           )}
         </div>
       </Card>

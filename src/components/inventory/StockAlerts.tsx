@@ -398,7 +398,7 @@ export const StockAlerts: React.FC = () => {
       </div>
 
       {/* Alertas de stock bajo - SIEMPRE MOSTRAR */}
-      <Card 
+      {/* <Card 
         title={`Productos con Stock Bajo - Menos de 10 unidades (${stockAlerts.length})`} 
         className="border-l-4 border-l-red-500"
       >
@@ -419,7 +419,7 @@ export const StockAlerts: React.FC = () => {
             <p className="text-sm text-gray-600">Todos los productos tienen más de 10 unidades en stock.</p>
           </div>
         )}
-      </Card>
+      </Card> */}
 
       {/* Lotes próximos a vencer - SIEMPRE MOSTRAR */}
       <Card 

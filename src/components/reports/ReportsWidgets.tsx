@@ -1,4 +1,4 @@
-// components/reports/ReportsWidgets.tsx (ACTUALIZADO - USAR REPORTS API)
+// src/components/reports/ReportsWidgets.tsx - CORREGIDO
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -23,29 +23,38 @@ export const DailySalesWidget: React.FC<DailySalesWidgetProps> = ({ className = 
     yesterdayRevenue: number;
   } | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   const { calculateGrowth, formatCurrency } = useReportCalculations();
 
   useEffect(() => {
     const loadDailySales = async (): Promise<void> => {
       setLoading(true);
+      setError(null);
       try {
         const today = new Date().toISOString().split('T')[0];
         const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        // ✅ USAR: nuevos endpoints de reports
+        // ✅ CORREGIDO: Usar nuevos endpoints de reports con manejo de errores
         const [todayData, yesterdayData] = await Promise.all([
           reportsService.generateSalesReport({ startDate: today, endDate: today }),
           reportsService.generateSalesReport({ startDate: yesterday, endDate: yesterday })
         ]);
 
         setSalesData({
-          todaySales: todayData.totalSales,
-          todayRevenue: todayData.totalRevenue,
-          yesterdayRevenue: yesterdayData.totalRevenue
+          todaySales: todayData.totalSales || 0,
+          todayRevenue: todayData.totalRevenue || 0,
+          yesterdayRevenue: yesterdayData.totalRevenue || 0
         });
       } catch (error) {
         console.error('Error loading daily sales:', error);
+        setError('Error al cargar ventas del día');
+        // ✅ FALLBACK: Datos por defecto si falla la carga
+        setSalesData({
+          todaySales: 0,
+          todayRevenue: 0,
+          yesterdayRevenue: 0
+        });
       } finally {
         setLoading(false);
       }
@@ -59,6 +68,24 @@ export const DailySalesWidget: React.FC<DailySalesWidgetProps> = ({ className = 
       <Card className={className} title="Ventas del Día">
         <div className="flex justify-center items-center h-20">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#7ca1eb] border-t-transparent" />
+        </div>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className={className} title="Ventas del Día">
+        <div className="text-center py-4">
+          <p className="text-red-500 text-sm">{error}</p>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={() => window.location.reload()}
+            className="mt-2"
+          >
+            Reintentar
+          </Button>
         </div>
       </Card>
     );
@@ -80,7 +107,7 @@ export const DailySalesWidget: React.FC<DailySalesWidgetProps> = ({ className = 
       <div className="space-y-3">
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-600">Ventas realizadas</span>
-          <span className="font-bold text-lg">{salesData.todaySales}</span>
+          <span className="font-bold text-lg text-gray-700">{formatters.number(salesData.todaySales)}</span>
         </div>
         
         <div className="flex justify-between items-center">
@@ -93,7 +120,7 @@ export const DailySalesWidget: React.FC<DailySalesWidgetProps> = ({ className = 
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-600">vs. Ayer</span>
           <Badge variant={growthVariant}>
-            {growth >= 0 ? '+' : ''}{formatters.percentage(growth)}
+            {growth >= 0 ? '+' : ''}{formatters.percentage(Math.abs(growth))}
           </Badge>
         </div>
       </div>
@@ -117,23 +144,38 @@ export const InventoryAlertsWidget: React.FC<InventoryAlertsWidgetProps> = ({
     critical: number;
   } | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadInventoryAlerts = async (): Promise<void> => {
       setLoading(true);
+      setError(null);
       try {
-        // ✅ USAR: nuevo endpoint de inventory report
+        // ✅ CORREGIDO: Usar nuevo endpoint de inventory report con manejo de errores
         const inventoryData = await reportsService.generateInventoryReport();
         
-        const critical = inventoryData.productRotation.filter(p => p.status === 'critical').length;
+        // ✅ CORREGIDO: Validar estructura de datos del backend
+        const stockAlerts = inventoryData.stockAlerts || {
+          lowStock: 0,
+          outOfStock: 0,
+          critical: 0,
+          expiringSoon: 0
+        };
         
         setAlertsData({
-          lowStock: inventoryData.lowStockProducts,
-          expired: inventoryData.expiredProducts,
-          critical
+          lowStock: stockAlerts.lowStock || 0,
+          expired: stockAlerts.expiringSoon || 0,
+          critical: stockAlerts.outOfStock || 0
         });
       } catch (error) {
         console.error('Error loading inventory alerts:', error);
+        setError('Error al cargar alertas');
+        // ✅ FALLBACK: Datos por defecto si falla la carga
+        setAlertsData({
+          lowStock: 0,
+          expired: 0,
+          critical: 0
+        });
       } finally {
         setLoading(false);
       }
@@ -147,6 +189,24 @@ export const InventoryAlertsWidget: React.FC<InventoryAlertsWidgetProps> = ({
       <Card className={className} title="Alertas de Inventario">
         <div className="flex justify-center items-center h-20">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#7ca1eb] border-t-transparent" />
+        </div>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className={className} title="Alertas de Inventario">
+        <div className="text-center py-4">
+          <p className="text-red-500 text-sm">{error}</p>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={() => window.location.reload()}
+            className="mt-2"
+          >
+            Reintentar
+          </Button>
         </div>
       </Card>
     );
@@ -184,27 +244,27 @@ export const InventoryAlertsWidget: React.FC<InventoryAlertsWidgetProps> = ({
           {alertsData.critical > 0 && (
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Sin stock</span>
-              <StatusBadge status="critical">
-                {alertsData.critical}
-              </StatusBadge>
+              <Badge variant="danger">
+                {formatters.number(alertsData.critical)}
+              </Badge>
             </div>
           )}
           
           {alertsData.lowStock > 0 && (
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Stock bajo</span>
-              <StatusBadge status="low">
-                {alertsData.lowStock}
-              </StatusBadge>
+              <Badge variant="warning">
+                {formatters.number(alertsData.lowStock)}
+              </Badge>
             </div>
           )}
           
           {alertsData.expired > 0 && (
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Vencidos</span>
-              <StatusBadge status="expired">
-                {alertsData.expired}
-              </StatusBadge>
+              <span className="text-sm text-gray-600">Por vencer</span>
+              <Badge variant="warning">
+                {formatters.number(alertsData.expired)}
+              </Badge>
             </div>
           )}
         </div>
@@ -229,29 +289,35 @@ export const TopProductsWidget: React.FC<TopProductsWidgetProps> = ({
     productName: string;
     quantitySold: number;
     rank: number;
+    revenue: number;
   }>>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadTopProducts = async (): Promise<void> => {
       setLoading(true);
+      setError(null);
       try {
         const endDate = new Date().toISOString().split('T')[0];
         const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        // ✅ USAR: nuevo endpoint de best selling products
+        // ✅ CORREGIDO: Usar nuevo endpoint de best selling products con manejo de errores
         const topProductsData = await reportsService.generateTopProductsReport(
           { startDate, endDate }, 
           limit
         );
         
-        setTopProducts(topProductsData.products.map(product => ({
-          productName: product.productName,
-          quantitySold: product.quantitySold,
-          rank: product.rank
+        setTopProducts((topProductsData.products || []).map(product => ({
+          productName: product.productName || 'N/A',
+          quantitySold: product.quantitySold || 0,
+          rank: product.rank || 0,
+          revenue: product.revenue || 0
         })));
       } catch (error) {
         console.error('Error loading top products:', error);
+        setError('Error al cargar productos');
+        setTopProducts([]);
       } finally {
         setLoading(false);
       }
@@ -270,6 +336,24 @@ export const TopProductsWidget: React.FC<TopProductsWidgetProps> = ({
     );
   }
 
+  if (error) {
+    return (
+      <Card className={className} title={`Top ${limit} Productos`}>
+        <div className="text-center py-4">
+          <p className="text-red-500 text-sm">{error}</p>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={() => window.location.reload()}
+            className="mt-2"
+          >
+            Reintentar
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card 
       className={className} 
@@ -283,15 +367,18 @@ export const TopProductsWidget: React.FC<TopProductsWidgetProps> = ({
       }
     >
       {topProducts.length === 0 ? (
-        <p className="text-gray-500 text-center py-4">No hay datos de ventas</p>
+        <div className="text-center py-4">
+          <div className="text-gray-400 text-2xl mb-2">📦</div>
+          <p className="text-gray-500">No hay datos de ventas</p>
+        </div>
       ) : (
         <div className="space-y-3">
           {topProducts.map((product, index) => {
             const maxQuantity = Math.max(...topProducts.map(p => p.quantitySold));
-            const percentage = (product.quantitySold / maxQuantity) * 100;
+            const percentage = maxQuantity > 0 ? (product.quantitySold / maxQuantity) * 100 : 0;
             
             return (
-              <div key={product.productName} className="space-y-1">
+              <div key={product.productName + index} className="space-y-1">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <Badge 
@@ -300,13 +387,18 @@ export const TopProductsWidget: React.FC<TopProductsWidgetProps> = ({
                     >
                       #{product.rank}
                     </Badge>
-                    <span className="text-sm font-medium truncate">
-                      {product.productName}
+                    <span className="text-sm font-medium truncate text-gray-700 max-w-24">
+                      {formatters.truncate(product.productName, 20)}
                     </span>
                   </div>
-                  <span className="text-sm text-gray-600">
-                    {formatters.number(product.quantitySold)}
-                  </span>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-700 font-medium">
+                      {formatters.number(product.quantitySold)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {formatters.currency(product.revenue)}
+                    </div>
+                  </div>
                 </div>
                 <ProgressBar 
                   value={percentage} 
@@ -340,25 +432,40 @@ export const ProfitabilityWidget: React.FC<ProfitabilityWidgetProps> = ({
     profitMargin: number;
   } | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   const { getVariantByValue } = useReportCalculations();
 
   useEffect(() => {
     const loadProfitability = async (): Promise<void> => {
       setLoading(true);
+      setError(null);
       try {
         const endDate = new Date().toISOString().split('T')[0];
         const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        // ✅ USAR: nuevo endpoint de profitability report
+        // ✅ CORREGIDO: Usar nuevo endpoint de profitability report con manejo de errores
         const profitabilityData = await reportsService.generateProfitabilityReport({
           startDate,
           endDate
         });
         
-        setProfitData(profitabilityData);
+        setProfitData({
+          totalRevenue: profitabilityData.totalRevenue || 0,
+          totalCosts: profitabilityData.totalCosts || 0,
+          grossProfit: profitabilityData.grossProfit || 0,
+          profitMargin: profitabilityData.profitMargin || 0
+        });
       } catch (error) {
         console.error('Error loading profitability:', error);
+        setError('Error al cargar rentabilidad');
+        // ✅ FALLBACK: Datos por defecto si falla la carga
+        setProfitData({
+          totalRevenue: 0,
+          totalCosts: 0,
+          grossProfit: 0,
+          profitMargin: 0
+        });
       } finally {
         setLoading(false);
       }
@@ -372,6 +479,24 @@ export const ProfitabilityWidget: React.FC<ProfitabilityWidgetProps> = ({
       <Card className={className} title="Rentabilidad (30 días)">
         <div className="flex justify-center items-center h-20">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#7ca1eb] border-t-transparent" />
+        </div>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className={className} title="Rentabilidad (30 días)">
+        <div className="text-center py-4">
+          <p className="text-red-500 text-sm">{error}</p>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={() => window.location.reload()}
+            className="mt-2"
+          >
+            Reintentar
+          </Button>
         </div>
       </Card>
     );

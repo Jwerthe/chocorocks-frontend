@@ -1,4 +1,4 @@
-// src/components/users/UserForm.tsx
+// src/components/users/UserForm.tsx - CORREGIDO
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -152,10 +152,11 @@ export const UserForm: React.FC<UserFormProps> = ({
     setIsSubmitting(true);
     
     try {
+      // ✅ CORREGIDO: Crear UserRequest con la estructura correcta según el backend
       const userData: UserRequest = {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
-        passwordHash: formData.password || 'unchanged', // El backend manejará esto
+        password: formData.password, // ✅ CAMBIO: 'password' en lugar de 'passwordHash'
         role: formData.role,
         typeIdentification: formData.typeIdentification,
         identificationNumber: formData.identificationNumber.trim(),
@@ -163,8 +164,11 @@ export const UserForm: React.FC<UserFormProps> = ({
         isActive: formData.isActive,
       };
 
+      console.log('📤 Enviando UserRequest:', userData); // Para debugging
+
       await onSubmit(userData);
     } catch (error) {
+      console.error('❌ Error en UserForm:', error);
       // El error se maneja en el componente padre
     } finally {
       setIsSubmitting(false);
@@ -279,8 +283,8 @@ export const UserForm: React.FC<UserFormProps> = ({
         </div>
       </div>
 
-      {/* Información adicional */}
-      {isEditing && (
+      {/* Información adicional para edición */}
+      {isEditing && user && (
         <div className="bg-gray-50 p-4 border-2 border-gray-200">
           <h5 className="font-medium text-gray-700 mb-2">Información del Sistema</h5>
           <div className="grid grid-cols-2 gap-4 text-sm">
@@ -291,10 +295,6 @@ export const UserForm: React.FC<UserFormProps> = ({
             <div>
               <span className="text-gray-600">Fecha de Registro:</span>
               <span className="ml-2 text-gray-500 font-medium">{formatters.date(user.createdAt)}</span>
-            </div>
-            <div>
-              <span className="text-gray-600">Última Actualización:</span>
-              <span className="ml-2 text-gray-500 font-medium">{formatters.date(user.updatedAt)}</span>
             </div>
           </div>
         </div>

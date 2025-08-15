@@ -354,31 +354,240 @@ export class SaleDetailAPI extends ApiService {
 }
 
 // User API
+// export class UserAPI extends ApiService {
+//   constructor() {
+//     super('/users');
+//   }
+
+//   async getAllUsers(): Promise<UserResponse[]> {
+//     return this.get<UserResponse[]>('');
+//   }
+
+//   async getUserById(id: number): Promise<UserResponse> {
+//     return this.get<UserResponse>(`/${id}`);
+//   }
+
+//   async createUser(user: UserRequest): Promise<UserResponse> {
+//     return this.post<UserResponse>('', user);
+//   }
+
+//   async updateUser(id: number, user: UserRequest): Promise<UserResponse> {
+//     return this.put<UserResponse>(`/${id}`, user);
+//   }
+
+//   async deleteUser(id: number): Promise<void> {
+//     return this.delete<void>(`/${id}`);
+//   }
+// }
+
+
+
+// src/services/api.ts - SECCIÓN UserAPI ACTUALIZADA
+
+// User API
 export class UserAPI extends ApiService {
   constructor() {
     super('/users');
+    console.log('👤 UserAPI initialized');
   }
 
   async getAllUsers(): Promise<UserResponse[]> {
-    return this.get<UserResponse[]>('');
+    console.log('📋 Getting all users...');
+    try {
+      const users = await this.get<UserResponse[]>('');
+      console.log(`✅ Retrieved ${users.length} users`);
+      return users;
+    } catch (error) {
+      console.error('❌ Error getting users:', error);
+      throw error;
+    }
   }
 
   async getUserById(id: number): Promise<UserResponse> {
-    return this.get<UserResponse>(`/${id}`);
+    console.log(`🔍 Getting user by ID: ${id}`);
+    try {
+      const user = await this.get<UserResponse>(`/${id}`);
+      console.log('✅ User retrieved:', user.email);
+      return user;
+    } catch (error) {
+      console.error(`❌ Error getting user ${id}:`, error);
+      throw error;
+    }
   }
 
   async createUser(user: UserRequest): Promise<UserResponse> {
-    return this.post<UserResponse>('', user);
+    console.log('👤 Creating new user...');
+    console.log('📤 User data being sent:', {
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      typeIdentification: user.typeIdentification,
+      identificationNumber: user.identificationNumber,
+      phoneNumber: user.phoneNumber,
+      isActive: user.isActive,
+      hasPassword: !!user.password,
+      passwordLength: user.password?.length || 0
+    });
+
+    // ✅ VALIDACIÓN: Verificar que los datos requeridos estén presentes
+    if (!user.name?.trim()) {
+      throw new Error('Name is required');
+    }
+    if (!user.email?.trim()) {
+      throw new Error('Email is required');
+    }
+    if (!user.password?.trim()) {
+      throw new Error('Password is required');
+    }
+    if (!user.identificationNumber?.trim()) {
+      throw new Error('Identification number is required');
+    }
+
+    try {
+      // ✅ ESTRUCTURA CORRECTA: Enviar exactamente lo que espera el backend
+      const requestData: UserRequest = {
+        name: user.name.trim(),
+        email: user.email.trim().toLowerCase(),
+        password: user.password, // ✅ 'password', no 'passwordHash'
+        role: user.role,
+        typeIdentification: user.typeIdentification,
+        identificationNumber: user.identificationNumber.trim(),
+        phoneNumber: user.phoneNumber?.trim() || undefined,
+        isActive: user.isActive
+      };
+
+      console.log('🚀 Final request data structure:', requestData);
+
+      const createdUser = await this.post<UserResponse>('', requestData);
+      
+      console.log('✅ User created successfully:', {
+        id: createdUser.id,
+        email: createdUser.email,
+        role: createdUser.role
+      });
+      
+      return createdUser;
+    } catch (error) {
+      console.error('❌ Error creating user:', error);
+      
+      // ✅ MEJOR MANEJO DE ERRORES: Extraer mensaje específico del backend
+      if (error instanceof Error) {
+        const errorMessage = error.message;
+        
+        // Mapear errores comunes del backend
+        if (errorMessage.includes('email already exists') || errorMessage.includes('duplicate key')) {
+          throw new Error('Este email ya está registrado en el sistema');
+        }
+        if (errorMessage.includes('identification number already exists')) {
+          throw new Error('Este número de identificación ya está registrado');
+        }
+        if (errorMessage.includes('400')) {
+          throw new Error('Datos inválidos. Verifica que todos los campos estén correctos.');
+        }
+        if (errorMessage.includes('401')) {
+          throw new Error('No tienes permisos para crear usuarios');
+        }
+        if (errorMessage.includes('403')) {
+          throw new Error('Acceso denegado para esta operación');
+        }
+      }
+      
+      throw error;
+    }
   }
 
   async updateUser(id: number, user: UserRequest): Promise<UserResponse> {
-    return this.put<UserResponse>(`/${id}`, user);
+    console.log(`📝 Updating user ID: ${id}`);
+    console.log('📤 Update data:', {
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      typeIdentification: user.typeIdentification,
+      identificationNumber: user.identificationNumber,
+      phoneNumber: user.phoneNumber,
+      isActive: user.isActive,
+      hasPassword: !!user.password && user.password !== 'KEEP_CURRENT_PASSWORD'
+    });
+
+    try {
+      // ✅ ESTRUCTURA CORRECTA: Para actualizaciones
+      const updateData: UserRequest = {
+        name: user.name.trim(),
+        email: user.email.trim().toLowerCase(),
+        password: user.password === 'KEEP_CURRENT_PASSWORD' ? '' : user.password, // Backend manejará contraseña vacía
+        role: user.role,
+        typeIdentification: user.typeIdentification,
+        identificationNumber: user.identificationNumber.trim(),
+        phoneNumber: user.phoneNumber?.trim() || undefined,
+        isActive: user.isActive
+      };
+
+      console.log('🚀 Final update data structure:', updateData);
+
+      const updatedUser = await this.put<UserResponse>(`/${id}`, updateData);
+      
+      console.log('✅ User updated successfully:', {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        role: updatedUser.role
+      });
+      
+      return updatedUser;
+    } catch (error) {
+      console.error(`❌ Error updating user ${id}:`, error);
+      
+      // Manejo de errores específicos para actualización
+      if (error instanceof Error) {
+        const errorMessage = error.message;
+        
+        if (errorMessage.includes('email already exists')) {
+          throw new Error('Este email ya está en uso por otro usuario');
+        }
+        if (errorMessage.includes('identification number already exists')) {
+          throw new Error('Este número de identificación ya está en uso');
+        }
+        if (errorMessage.includes('404')) {
+          throw new Error('Usuario no encontrado');
+        }
+        if (errorMessage.includes('403')) {
+          throw new Error('No tienes permisos para actualizar este usuario');
+        }
+      }
+      
+      throw error;
+    }
   }
 
   async deleteUser(id: number): Promise<void> {
-    return this.delete<void>(`/${id}`);
+    console.log(`🗑️ Deleting user ID: ${id}`);
+    try {
+      await this.delete<void>(`/${id}`);
+      console.log('✅ User deleted successfully');
+    } catch (error) {
+      console.error(`❌ Error deleting user ${id}:`, error);
+      
+      if (error instanceof Error) {
+        const errorMessage = error.message;
+        
+        if (errorMessage.includes('404')) {
+          throw new Error('Usuario no encontrado');
+        }
+        if (errorMessage.includes('403')) {
+          throw new Error('No tienes permisos para eliminar usuarios');
+        }
+        if (errorMessage.includes('409')) {
+          throw new Error('No se puede eliminar este usuario porque tiene datos relacionados');
+        }
+      }
+      
+      throw error;
+    }
   }
 }
+
+
+
+
 
 // Product Batch API
 export class ProductBatchAPI extends ApiService {
