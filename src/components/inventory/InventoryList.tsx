@@ -1,4 +1,4 @@
-// src/components/inventory/InventoryList.tsx
+// src/components/inventory/InventoryList.tsx (ACTUALIZADO)
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { BackendErrorHandler } from '../common/BackendErrorHandler';
 import { ProductBatchForm } from './ProductBatchForm';
 import { InventoryMovementForm } from './InventoryMovementForm';
+import { InventoryMovementsList } from './InventoryMovementsList';
 import { 
   ProductBatchResponse, 
   StoreResponse, 
@@ -22,13 +23,22 @@ import {
 import { productBatchAPI, storeAPI, productAPI, ApiError } from '@/services/api';
 import { useNotification } from '@/hooks/useNotification';
 
+// Enum para las tabs
+enum InventoryTab {
+  BATCHES = 'batches',
+  MOVEMENTS = 'movements'
+}
+
 export const InventoryList: React.FC = () => {
+  // Estados principales
+  const [activeTab, setActiveTab] = useState<InventoryTab>(InventoryTab.BATCHES);
   const [batches, setBatches] = useState<ProductBatchResponse[]>([]);
   const [stores, setStores] = useState<StoreResponse[]>([]);
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   
+  // Estados de formularios
   const [showBatchForm, setShowBatchForm] = useState<boolean>(false);
   const [showMovementForm, setShowMovementForm] = useState<boolean>(false);
   const [movementType, setMovementType] = useState<MovementType>(MovementType.IN);
@@ -38,6 +48,7 @@ export const InventoryList: React.FC = () => {
     batch: null
   });
   
+  // Estados de filtros
   const [filters, setFilters] = useState<BatchFilters>({
     storeId: '',
     productId: '',
@@ -83,10 +94,12 @@ export const InventoryList: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchBatches();
-    fetchStores();
-    fetchProducts();
-  }, [fetchBatches, fetchStores, fetchProducts]);
+    if (activeTab === InventoryTab.BATCHES) {
+      fetchBatches();
+      fetchStores();
+      fetchProducts();
+    }
+  }, [activeTab, fetchBatches, fetchStores, fetchProducts]);
 
   const handleDeleteBatch = (batch: ProductBatchResponse): void => {
     setDeleteConfirm({ show: true, batch });
@@ -166,7 +179,6 @@ export const InventoryList: React.FC = () => {
       return 'Fecha inválida';
     }
   };
-
 
   const handleFilterChange = (field: keyof BatchFilters, value: string | boolean): void => {
     setFilters(prev => ({ ...prev, [field]: value }));
@@ -339,6 +351,22 @@ export const InventoryList: React.FC = () => {
     },
   ];
 
+  // ✅ COMPONENTE DE TABS
+  const renderTabButton = (tab: InventoryTab, label: string, icon: React.ReactNode) => (
+    <button
+      key={tab}
+      onClick={() => setActiveTab(tab)}
+      className={`flex items-center space-x-2 px-4 py-2 border-b-2 font-medium text-sm transition-colors ${
+        activeTab === tab
+          ? 'border-[#7ca1eb] text-[#7ca1eb]'
+          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -375,90 +403,125 @@ export const InventoryList: React.FC = () => {
         <BackendErrorHandler 
           error={error}
           onRetry={fetchBatches}
-          title="Error al cargar Lotes"
-          description="No se pudieron cargar los lotes de inventario. Verifica la conexión con el backend."
+          title="Error al cargar Inventario"
+          description="No se pudieron cargar los datos del inventario. Verifica la conexión con el backend."
         />
       )}
 
-      <Card title="Filtros de Inventario">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Select
-            label="Tienda/Ubicación"
-            options={storeOptions}
-            value={filters.storeId}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
-              handleFilterChange('storeId', e.target.value)
-            }
-          />
-          
-          <Select
-            label="Producto"
-            options={productOptions}
-            value={filters.productId}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
-              handleFilterChange('productId', e.target.value)
-            }
-          />
-
-          <div className="space-y-2">
-            <label className="block text-sm font-bold text-gray-700">Filtros Especiales</label>
-            <div className="space-y-2">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={filters.showExpiring}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-                    handleFilterChange('showExpiring', e.target.checked)
-                  }
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-gray-600">Próximos a vencer (30 días)</span>
-              </label>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={filters.showLowStock}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-                    handleFilterChange('showLowStock', e.target.checked)
-                  }
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-gray-600">Stock bajo</span>
-              </label>
-            </div>
-          </div>
-
-          <div className="flex items-end">
-            <Button variant="outline" onClick={clearFilters}>
-              Limpiar Filtros
-            </Button>
-          </div>
-        </div>
-      </Card>
-
+      {/* ✅ TABS DE NAVEGACIÓN */}
       <Card>
-        <div className="mb-4 flex justify-between items-center">
-          <h2 className="text-lg text-gray-700 font-bold">
-            Lotes de Inventario ({filteredBatches.length})
-          </h2>
-          <div className="text-sm text-gray-600">
-            <span className="mr-4">
-              <strong>Total en stock:</strong> {filteredBatches.reduce((sum, batch) => sum + batch.currentQuantity, 0)} unidades
-            </span>
-            <span>
-              <strong>Valor total:</strong> ${filteredBatches.reduce((sum, batch) => sum + (batch.batchCost * (batch.currentQuantity / batch.initialQuantity)), 0).toFixed(2)}
-            </span>
-          </div>
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            {renderTabButton(
+              InventoryTab.BATCHES,
+              'Lotes de Inventario',
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            )}
+            {renderTabButton(
+              InventoryTab.MOVEMENTS,
+              'Historial de Movimientos',
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8z" />
+              </svg>
+            )}
+          </nav>
         </div>
-        
-        <Table
-          data={filteredBatches}
-          columns={columns}
-          loading={loading}
-          emptyMessage="No se encontraron lotes de inventario"
-        />
+
+        {/* ✅ CONTENIDO DE LAS TABS */}
+        <div className="p-6">
+          {activeTab === InventoryTab.BATCHES ? (
+            <div className="space-y-6">
+              {/* Filtros para lotes */}
+              <Card title="Filtros de Inventario">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Select
+                    label="Tienda/Ubicación"
+                    options={storeOptions}
+                    value={filters.storeId}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
+                      handleFilterChange('storeId', e.target.value)
+                    }
+                  />
+                  
+                  <Select
+                    label="Producto"
+                    options={productOptions}
+                    value={filters.productId}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
+                      handleFilterChange('productId', e.target.value)
+                    }
+                  />
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-gray-700">Filtros Especiales</label>
+                    <div className="space-y-2">
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={filters.showExpiring}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                            handleFilterChange('showExpiring', e.target.checked)
+                          }
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm text-gray-600">Próximos a vencer (30 días)</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={filters.showLowStock}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                            handleFilterChange('showLowStock', e.target.checked)
+                          }
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm text-gray-600">Stock bajo</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex items-end">
+                    <Button variant="outline" onClick={clearFilters}>
+                      Limpiar Filtros
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Tabla de lotes */}
+              <div>
+                <div className="mb-4 flex justify-between items-center">
+                  <h2 className="text-lg text-gray-700 font-bold">
+                    Lotes de Inventario ({filteredBatches.length})
+                  </h2>
+                  <div className="text-sm text-gray-600">
+                    <span className="mr-4">
+                      <strong>Total en stock:</strong> {filteredBatches.reduce((sum, batch) => sum + batch.currentQuantity, 0)} unidades
+                    </span>
+                    <span>
+                      <strong>Valor total:</strong> ${filteredBatches.reduce((sum, batch) => sum + (batch.batchCost * (batch.currentQuantity / batch.initialQuantity)), 0).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                
+                <Table
+                  data={filteredBatches}
+                  columns={columns}
+                  loading={loading}
+                  emptyMessage="No se encontraron lotes de inventario"
+                />
+              </div>
+            </div>
+          ) : (
+            /* ✅ TAB DE MOVIMIENTOS */
+            <InventoryMovementsList />
+          )}
+        </div>
       </Card>
 
+      {/* Formularios */}
       <ProductBatchForm
         isOpen={showBatchForm}
         onClose={handleBatchFormClose}
