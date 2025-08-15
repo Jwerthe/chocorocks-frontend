@@ -201,39 +201,47 @@ export const InventoryMovementsList: React.FC = () => {
 
   // Filtering logic
   const filteredMovements = movements.filter((movement: InventoryMovementResponse): boolean => {
-    const matchesSearch = !filters.search || 
-      movement.product.nameProduct.toLowerCase().includes(filters.search.toLowerCase()) ||
-      movement.user.name.toLowerCase().includes(filters.search.toLowerCase()) ||
-      (movement.batch?.batchCode.toLowerCase().includes(filters.search.toLowerCase())) ||
-      (movement.notes?.toLowerCase().includes(filters.search.toLowerCase()));
-    
-    const matchesType = !filters.movementType || movement.movementType === filters.movementType;
-    const matchesReason = !filters.reason || movement.reason === filters.reason;
-    const matchesProduct = !filters.productId || movement.product.id === filters.productId;
-    const matchesUser = !filters.userId || movement.user.id === filters.userId;
-    
-    // Store matching (puede ser fromStore o toStore)
-    const matchesStore = !filters.storeId || 
-      movement.fromStore?.id === filters.storeId || 
-      movement.toStore?.id === filters.storeId;
-    
-    // Date filtering
-    let matchesStartDate = true;
-    let matchesEndDate = true;
-    
-    if (filters.startDate || filters.endDate) {
-      const movementDate = new Date(movement.movementDate).toISOString().split('T')[0];
-      if (filters.startDate) {
-        matchesStartDate = movementDate >= filters.startDate;
-      }
-      if (filters.endDate) {
-        matchesEndDate = movementDate <= filters.endDate;
-      }
-    }
+  const q = filters.search?.toLowerCase() || '';
 
-    return matchesSearch && matchesType && matchesReason && matchesProduct && 
-           matchesUser && matchesStore && matchesStartDate && matchesEndDate;
-  });
+  const matchesSearch: boolean =
+    !q ||
+    (movement.product.nameProduct?.toLowerCase().includes(q)) ||
+    (movement.user.name?.toLowerCase().includes(q)) ||
+    ((movement.batch?.batchCode ?? '').toLowerCase().includes(q)) ||
+    ((movement.notes ?? '').toLowerCase().includes(q));
+
+  const matchesType: boolean = !filters.movementType || movement.movementType === filters.movementType;
+  const matchesReason: boolean = !filters.reason || movement.reason === filters.reason;
+  const matchesProduct: boolean = !filters.productId || movement.product.id === filters.productId;
+  const matchesUser: boolean = !filters.userId || movement.user.id === filters.userId;
+
+  // Store: puede ser fromStore o toStore
+  const matchesStore: boolean =
+    !filters.storeId ||
+    movement.fromStore?.id === filters.storeId ||
+    movement.toStore?.id === filters.storeId;
+
+  // Fechas -> siempre boolean
+  let matchesStartDate: boolean = true;
+  let matchesEndDate: boolean = true;
+
+  if (filters.startDate || filters.endDate) {
+    const movementDate = new Date(movement.movementDate).toISOString().split('T')[0];
+    if (filters.startDate) matchesStartDate = movementDate >= filters.startDate;
+    if (filters.endDate)   matchesEndDate   = movementDate <= filters.endDate;
+  }
+
+  return (
+    matchesSearch &&
+    matchesType &&
+    matchesReason &&
+    matchesProduct &&
+    matchesUser &&
+    matchesStore &&
+    matchesStartDate &&
+    matchesEndDate
+  );
+});
 
   // Select options
   const storeOptions: SelectOption[] = [

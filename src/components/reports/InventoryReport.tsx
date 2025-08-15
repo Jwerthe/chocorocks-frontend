@@ -12,7 +12,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatters } from '@/utils/formatters';
 import { ReportProps } from '@/types/reports';
-import { InventoryReportResponse, StoreResponse, CategoryResponse } from '@/types';
+import { InventoryReportResponse, StoreResponse, CategoryResponse } from '@/types/reports';
 import { storeAPI, categoryAPI } from '@/services/api';
 import { reportsService } from '@/services/reportsService';
 
@@ -63,11 +63,12 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
         state.selectedStoreId || undefined,
         state.selectedCategoryId || undefined
       );
-      setState(prev => ({ 
-        ...prev, 
-        data: report, 
-        loading: false 
+      setState(prev => ({
+        ...prev,
+        data: report as InventoryReportResponse,
+        loading: false,
       }));
+
     } catch (error) {
       setState(prev => ({ 
         ...prev, 

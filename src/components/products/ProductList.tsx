@@ -14,9 +14,23 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { BackendErrorHandler } from '../common/BackendErrorHandler';
 import { ProductForm } from './ProductForm';
 import { CategoryForm } from './CategoryForm';
-import { ProductResponse, CategoryResponse, ProductFilters } from '@/types';
+import { ProductResponse, CategoryResponse} from '@/types';
 import { productAPI, categoryAPI, ApiError } from '@/services/api';
 import { useDebounce } from '@/hooks/useDebounce';
+
+interface ProductFilters {
+  search: string;
+  categoryId?: number;
+  flavor: string;
+  isActive?: boolean;
+}
+
+interface ProductFilters {
+  search: string;
+  categoryId?: number;
+  flavor: string;
+  isActive?: boolean;
+}
 
 interface TableColumn<T> {
   key: string;
@@ -160,31 +174,8 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
   };
 
   const handleSearch = useCallback(async (): Promise<void> => {
-    if (!filters.search && !filters.categoryId && !filters.flavor && filters.isActive === undefined) {
-      fetchProducts();
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    try {
-      const data = await productAPI.searchProducts(filters);
-      setProducts(data);
-    } catch (err) {
-      // If search endpoint doesn't exist, fallback to client-side filtering
-      if (err instanceof ApiError && err.status === 404) {
-        await fetchProducts();
-      } else {
-        const errorMessage = err instanceof ApiError 
-          ? err.message 
-          : 'Error al buscar productos';
-        setError(errorMessage);
-        console.error('Error searching products:', err);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
+  await fetchProducts();
+}, [fetchProducts]);
 
   const clearFilters = (): void => {
     setFilters({

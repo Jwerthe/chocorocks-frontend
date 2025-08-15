@@ -74,7 +74,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
     reason: MovementReason.TRANSFER,
     referenceId: undefined,
     referenceType: undefined,
-    userId: 0,
+    userId: '',
     notes: '',
   });
 
@@ -158,7 +158,9 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
       reason: MovementReason.TRANSFER,
       referenceId: undefined,
       referenceType: undefined,
-      userId: numericUserId,
+      userId: numericUserId > 0
+      ? numericUserId.toString()
+      : '',
       notes: '',
     });
     
@@ -343,7 +345,7 @@ export const InventoryMovementForm: React.FC<InventoryMovementFormProps> = ({
 
       const movementData: InventoryMovementRequest = {
         ...formData,
-        userId: numericUserId,
+        userId: numericUserId.toString(),
         movementType: MovementType.TRANSFER,
         reason: MovementReason.TRANSFER
       };
