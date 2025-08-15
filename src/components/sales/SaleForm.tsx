@@ -232,16 +232,21 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     }
   }, []);
 
-  // ✅ CORREGIDO: Cargar detalles de venta con lotes
+  // ✅ CORREGIDO: Cargar detalles de venta usando API separada
   const loadSaleItems = useCallback(async (saleId: number): Promise<void> => {
     try {
-      const sale = await saleAPI.getSaleById(saleId);
-      console.log('🔍 Sale data loaded:', sale);
+      console.log('🔍 Loading sale details for sale ID:', saleId);
       
-      if (sale.saleDetails && sale.saleDetails.length > 0) {
+      // ✅ CORREGIDO: SaleResponse NO incluye saleDetails - usar API separada
+      const allSaleDetails = await saleDetailAPI.getAllSaleDetails();
+      const saleDetails = allSaleDetails.filter(detail => detail.sale.id === saleId);
+      
+      console.log('📋 Sale details found:', saleDetails.length);
+      
+      if (saleDetails.length > 0) {
         const items: SaleItem[] = [];
         
-        for (const detail of sale.saleDetails) {
+        for (const detail of saleDetails) {
           const availableStock = await getProductStock(detail.product.id);
           items.push({
             id: detail.id,
@@ -259,7 +264,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
         setSaleItems(items);
         console.log('✅ Items de venta cargados:', items);
       } else {
-        console.log('⚠️ No sale details found or empty array');
+        console.log('⚠️ No sale details found for this sale');
         setSaleItems([]);
       }
     } catch (err) {

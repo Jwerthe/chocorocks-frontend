@@ -303,13 +303,13 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
         </span>
       ),
     },
-    {
-      key: 'minStockLevel',
-      header: 'Stock Mín.',
-      render: (value: number) => (
-        <Badge variant="secondary" size="sm">{value}</Badge>
-      ),
-    },
+    //  {
+    //    key: 'minStockLevel',
+    //   header: 'Stock Mín.',
+    //   render: (value: number) => (
+    //     <Badge variant="secondary" size="sm">{value}</Badge>
+    //  ),
+    //  },
     {
       key: 'isActive',
       header: 'Estado',

@@ -448,13 +448,13 @@ export const SaleList: React.FC = () => {
           >
             Editar
           </Button>
-          <Button
+          {/* <Button
             size="sm"
             variant="danger"
             onClick={() => handleDeleteClick(row)}
           >
             Eliminar
-          </Button>
+          </Button> */}
         </div>
       ),
     },

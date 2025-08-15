@@ -23,7 +23,7 @@ interface ReportConfig {
   id: ReportType;
   title: string;
   description: string;
-  component: React.ComponentType<{ onClose: () => void }>;
+  component: React.ComponentType<{ onClose?: () => void }>;
   icon: React.ReactNode;
   requiresAdmin?: boolean;
 }

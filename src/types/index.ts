@@ -109,7 +109,7 @@ export interface User extends BaseEntity {
 export interface UserRequest {
   name: string;
   email: string;
-  passwordHash: string;
+  password: string;
   role: UserRole;
   typeIdentification: IdentificationType;
   identificationNumber: string;
@@ -125,7 +125,130 @@ export interface UserResponse extends BaseEntity {
   identificationNumber: string;
   phoneNumber?: string;
   isActive: boolean;
+  createdAt: string; // ✅ CAMBIO: LocalDateTime se serializa como string
+  updatedAt: string; // ✅ AGREGADO: updatedAt que viene del BaseEntity
 }
+
+// ✅ NUEVO: Tipos para la respuesta de creación de Supabase
+export interface SupabaseCreateUserResponse {
+  id: string;
+  email: string;
+  createdAt: string;
+  emailConfirmedAt?: string;
+  userMetadata?: Record<string, any>;
+  appMetadata?: Record<string, any>;
+  role?: string;
+  aud?: string;
+  phone?: string;
+  phoneConfirmedAt?: string;
+  confirmationSentAt?: string;
+  recoverySentAt?: string;
+  emailChange?: string;
+  emailChangeSentAt?: string;
+  emailChangeConfirmStatus?: number;
+  bannedUntil?: string;
+  invitedAt?: string;
+  updatedAt?: string;
+  lastSignInAt?: string;
+}
+
+
+
+
+
+// ✅ NUEVO: Interface para operaciones de actualización de usuario
+export interface UserUpdateRequest {
+  name?: string;
+  email?: string;
+  password?: string; // Opcional para actualizaciones
+  role?: UserRole;
+  typeIdentification?: IdentificationType;
+  identificationNumber?: string;
+  phoneNumber?: string;
+  isActive?: boolean;
+}
+
+// ✅ HELPER: Función para convertir UserResponse a User (si es necesaria)
+export const mapUserResponseToUser = (userResponse: UserResponse): User => ({
+  id: userResponse.id,
+  name: userResponse.name,
+  email: userResponse.email,
+  role: userResponse.role,
+  typeIdentification: userResponse.typeIdentification,
+  identificationNumber: userResponse.identificationNumber,
+  phoneNumber: userResponse.phoneNumber,
+  isActive: userResponse.isActive,
+  createdAt: userResponse.createdAt,
+  updatedAt: userResponse.updatedAt,
+});
+
+// ✅ HELPER: Función para validar UserRequest antes de envío
+export const validateUserRequest = (userRequest: UserRequest): string[] => {
+  const errors: string[] = [];
+  
+  if (!userRequest.name?.trim()) {
+    errors.push('El nombre es requerido');
+  }
+  
+  if (!userRequest.email?.trim()) {
+    errors.push('El email es requerido');
+  }
+  
+  if (!userRequest.password?.trim()) {
+    errors.push('La contraseña es requerida');
+  }
+  
+  if (!userRequest.identificationNumber?.trim()) {
+    errors.push('El número de identificación es requerido');
+  }
+  
+  if (!Object.values(UserRole).includes(userRequest.role)) {
+    errors.push('El rol especificado no es válido');
+  }
+  
+  if (!Object.values(IdentificationType).includes(userRequest.typeIdentification)) {
+    errors.push('El tipo de identificación no es válido');
+  }
+  
+  return errors;
+};
+
+// ✅ HELPER: Función para debugging de UserRequest
+export const debugUserRequest = (userRequest: UserRequest, context: string = 'Unknown'): void => {
+  if (process.env.NODE_ENV === 'development') {
+    console.group(`👤 [${context}] UserRequest Debug`);
+    console.log('📧 Email:', userRequest.email);
+    console.log('👨‍💼 Role:', userRequest.role);
+    console.log('🆔 ID Type:', userRequest.typeIdentification);
+    console.log('📱 Phone:', userRequest.phoneNumber || 'None');
+    console.log('✅ Active:', userRequest.isActive);
+    console.log('🔒 Has Password:', userRequest.password ? 'Yes' : 'No');
+    console.table({
+      name: userRequest.name,
+      email: userRequest.email,
+      role: userRequest.role,
+      identificationType: userRequest.typeIdentification,
+      identificationNumber: userRequest.identificationNumber,
+      phoneNumber: userRequest.phoneNumber,
+      isActive: userRequest.isActive,
+      passwordLength: userRequest.password?.length || 0
+    });
+    console.groupEnd();
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Product Types
 export interface Product extends BaseEntity {

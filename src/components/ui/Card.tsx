@@ -5,6 +5,7 @@ interface CardProps {
   title?: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  id?: string;
 }
 
 export const Card: React.FC<CardProps> = ({

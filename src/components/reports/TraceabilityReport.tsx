@@ -1,4 +1,4 @@
-// src/components/reports/TraceabilityReport.tsx (ACTUALIZADO - USAR REPORTS API)
+// src/components/reports/TraceabilityReport.tsx - CORREGIDO (Sin Loop Infinito)
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -10,14 +10,48 @@ import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
 import { Tabs } from '@/components/ui/Tabs';
-import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { formatters } from '@/utils/formatters';
 import { ReportProps } from '@/types/reports';
-import { TraceabilityReportResponse, ProductResponse, ProductBatchResponse } from '@/types';
+import { ProductResponse, ProductBatchResponse } from '@/types';
 import { productAPI, productBatchAPI } from '@/services/api';
 import { reportsService } from '@/services/reportsService';
+
+// ✅ NUEVA: Estructura según el backend real
+interface TraceabilityReportResponse {
+  batchCode: string;
+  productId: number;
+  productName: string;
+  productionDate: string; // LocalDate se serializa como string
+  expirationDate: string;
+  initialQuantity: number;
+  currentQuantity: number;
+  movements: BatchMovementResponse[];
+  sales: BatchSaleResponse[];
+}
+
+interface BatchMovementResponse {
+  movementId: number;
+  movementType: string;
+  fromStore?: string;
+  toStore?: string;
+  quantity: number;
+  reason: string;
+  movementDate: string; // LocalDate se serializa como string
+  userEmail: string;
+}
+
+interface BatchSaleResponse {
+  saleId: number;
+  saleNumber: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  saleDate: string; // LocalDate se serializa como string
+  storeName: string;
+  clientName?: string;
+}
 
 interface TraceabilityReportState {
   data: TraceabilityReportResponse | null;
@@ -39,25 +73,38 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [batches, setBatches] = useState<ProductBatchResponse[]>([]);
 
-  // Cargar datos iniciales
+  // ✅ CORREGIDO: useEffect sin dependencias problemáticas
   useEffect(() => {
+    let isMounted = true;
+
     const loadInitialData = async (): Promise<void> => {
       try {
         const [productsData, batchesData] = await Promise.all([
           productAPI.getAllProducts(),
           productBatchAPI.getAllBatches()
         ]);
-        setProducts(productsData);
-        setBatches(batchesData);
+        
+        if (isMounted) {
+          setProducts(productsData || []);
+          setBatches(batchesData || []);
+        }
       } catch (error) {
         console.error('Error loading initial data:', error);
+        if (isMounted) {
+          setProducts([]);
+          setBatches([]);
+        }
       }
     };
 
     loadInitialData();
-  }, []);
 
-  // ✅ NUEVO: Usar endpoint directo de reports
+    return () => {
+      isMounted = false;
+    };
+  }, []); // ✅ CORREGIDO: Array de dependencias vacío
+
+  // ✅ CORREGIDO: useCallback estable sin dependencias problemáticas
   const generateReport = useCallback(async (batchCode?: string): Promise<void> => {
     const searchCode = batchCode || state.searchBatchCode;
     
@@ -77,7 +124,7 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
         ...prev, 
         data: report, 
         loading: false,
-        searchBatchCode: searchCode // Actualizar con el código usado
+        searchBatchCode: searchCode
       }));
     } catch (error) {
       setState(prev => ({ 
@@ -86,61 +133,74 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
         loading: false 
       }));
     }
-  }, [state.searchBatchCode]);
+  }, [state.searchBatchCode]); // ✅ CORREGIDO: Solo dependencia necesaria
 
-  const handleBatchCodeChange = (value: string): void => {
+  // ✅ CORREGIDO: Handlers estables
+  const handleBatchCodeChange = useCallback((value: string): void => {
     setState(prev => ({ ...prev, searchBatchCode: value }));
-  };
+  }, []);
 
-  const handleBatchSelect = (batchCode: string): void => {
+  const handleBatchSelect = useCallback((batchCode: string): void => {
     setState(prev => ({ ...prev, searchBatchCode: batchCode }));
     generateReport(batchCode);
-  };
+  }, [generateReport]);
 
-  const handleProductChange = (productId: string): void => {
+  const handleProductChange = useCallback((productId: string): void => {
     setState(prev => ({
       ...prev,
       selectedProductId: productId ? parseInt(productId) : null
     }));
-  };
+  }, []);
 
-  const handleExport = (): void => {
-    if (!state.data || !state.data.batchInfo) return;
+  const handleExport = useCallback((): void => {
+    if (!state.data) return;
+
+    // ✅ CORREGIDO: Calcular summary en frontend
+    const totalSold = state.data.sales?.reduce((sum, sale) => sum + (sale.quantity || 0), 0) || 0;
+    const totalMoved = state.data.movements?.reduce((sum, movement) => {
+      if (movement.movementType === 'TRANSFER') {
+        return sum + (movement.quantity || 0);
+      }
+      return sum;
+    }, 0) || 0;
+    const remaining = (state.data.currentQuantity || 0);
 
     const csvContent = [
       'Reporte de Trazabilidad',
-      `Lote: ${state.data.batchInfo.batchCode}`,
-      `Producto: ${state.data.batchInfo.productName}`,
-      `Fecha Producción: ${state.data.batchInfo.productionDate}`,
-      `Fecha Vencimiento: ${state.data.batchInfo.expirationDate}`,
+      `Lote: ${state.data.batchCode || 'N/A'}`,
+      `Producto: ${state.data.productName || 'N/A'}`,
+      `Fecha Producción: ${state.data.productionDate || 'N/A'}`,
+      `Fecha Vencimiento: ${state.data.expirationDate || 'N/A'}`,
       '',
       'Resumen',
-      `Cantidad Producida,${state.data.summary.totalProduced}`,
-      `Cantidad Vendida,${state.data.summary.totalSold}`,
-      `Cantidad Transferida,${state.data.summary.totalMoved}`,
-      `Cantidad Restante,${state.data.summary.remaining}`,
+      `Cantidad Inicial,${state.data.initialQuantity || 0}`,
+      `Cantidad Vendida,${totalSold}`,
+      `Cantidad Transferida,${totalMoved}`,
+      `Cantidad Restante,${remaining}`,
       '',
       'Movimientos de Inventario',
-      'Fecha,Tipo,Cantidad,Razón,Desde,Hacia,Usuario,Notas',
-      ...state.data.movements.map(movement => 
-        `${movement.movementDate},${movement.movementType},${movement.quantity},${movement.reason},${movement.fromStore || ''},${movement.toStore || ''},${movement.userName},${movement.notes}`
+      'Fecha,Tipo,Cantidad,Razón,Desde,Hacia,Usuario',
+      ...(state.data.movements || []).map(movement => 
+        `${movement.movementDate || ''},${movement.movementType || ''},${movement.quantity || 0},${movement.reason || ''},${movement.fromStore || ''},${movement.toStore || ''},${movement.userEmail || ''}`
       ),
       '',
       'Ventas',
       'Número Venta,Fecha,Cantidad,Precio Unitario,Subtotal,Tienda,Cliente',
-      ...state.data.sales.map(sale => 
-        `${sale.saleNumber},${sale.date},${sale.quantity},${sale.unitPrice},${sale.subtotal},${sale.storeName},${sale.clientName || ''}`
+      ...(state.data.sales || []).map(sale => 
+        `${sale.saleNumber || ''},${sale.saleDate || ''},${sale.quantity || 0},${sale.unitPrice || 0},${sale.subtotal || 0},${sale.storeName || ''},${sale.clientName || ''}`
       )
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `trazabilidad-${state.data.batchInfo.batchCode}-${Date.now()}.csv`;
+    link.download = `trazabilidad-${state.data.batchCode || 'lote'}-${Date.now()}.csv`;
     link.click();
-  };
+  }, [state.data]);
 
-  const getMovementTypeVariant = (type: string): 'primary' | 'success' | 'warning' => {
+  // Helper functions
+  const getMovementTypeVariant = (type: string | null | undefined): 'primary' | 'success' | 'warning' => {
+    if (!type) return 'primary';
     switch (type) {
       case 'IN': return 'success';
       case 'OUT': return 'warning';
@@ -149,7 +209,8 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
     }
   };
 
-  const getMovementTypeText = (type: string): string => {
+  const getMovementTypeText = (type: string | null | undefined): string => {
+    if (!type) return 'N/A';
     switch (type) {
       case 'IN': return 'Entrada';
       case 'OUT': return 'Salida';
@@ -158,7 +219,8 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
     }
   };
 
-  const getReasonText = (reason: string): string => {
+  const getReasonText = (reason: string | null | undefined): string => {
+    if (!reason) return 'N/A';
     switch (reason) {
       case 'PRODUCTION': return 'Producción';
       case 'SALE': return 'Venta';
@@ -170,16 +232,19 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
     }
   };
 
-  // Filtrar lotes por producto seleccionado
-  const filteredBatches = state.selectedProductId
-    ? batches.filter(batch => batch.product.id === state.selectedProductId)
-    : batches;
+  // ✅ CORREGIDO: Filtros estables
+  const filteredBatches = React.useMemo(() => {
+    return state.selectedProductId
+      ? batches.filter(batch => batch.product.id === state.selectedProductId)
+      : batches;
+  }, [state.selectedProductId, batches]);
 
+  // ✅ CORREGIDO: Columnas con colores mejorados
   const movementColumns = [
     { 
       key: 'movementDate', 
       header: 'Fecha',
-      render: (value: string) => formatters.dateTime(value)
+      render: (value: string) => <span className="text-gray-700">{formatters.date(value)}</span>
     },
     { 
       key: 'movementType', 
@@ -190,143 +255,213 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
         </Badge>
       )
     },
-    { key: 'quantity', header: 'Cantidad' },
+    { 
+      key: 'quantity', 
+      header: 'Cantidad',
+      render: (value: number) => <span className="text-gray-700 font-medium">{formatters.number(value || 0)}</span>
+    },
     { 
       key: 'reason', 
       header: 'Razón',
-      render: (value: string) => getReasonText(value)
+      render: (value: string) => <span className="text-gray-700">{getReasonText(value)}</span>
     },
-    { key: 'fromStore', header: 'Desde' },
-    { key: 'toStore', header: 'Hacia' },
-    { key: 'userName', header: 'Usuario' },
-    { key: 'notes', header: 'Notas' }
+    { 
+      key: 'fromStore', 
+      header: 'Desde',
+      render: (value: string) => <span className="text-gray-700">{value || '-'}</span>
+    },
+    { 
+      key: 'toStore', 
+      header: 'Hacia',
+      render: (value: string) => <span className="text-gray-700">{value || '-'}</span>
+    },
+    { 
+      key: 'userEmail', 
+      header: 'Usuario',
+      render: (value: string) => <span className="text-gray-700">{value || 'N/A'}</span>
+    }
   ];
 
   const salesColumns = [
-    { key: 'saleNumber', header: 'Venta #', render: (value: string) => <span className='text-gray-700'>{value}</span>},
     { 
-      key: 'date', 
-      header: 'Fecha',
-      render: (value: string) => <span className='text-gray-700'>{formatters.dateTime(value)}</span>
+      key: 'saleNumber', 
+      header: 'Venta #', 
+      render: (value: string) => <span className='text-gray-700 font-medium'>{value || 'N/A'}</span>
     },
-    { key: 'quantity', header: 'Cantidad',  render: (value: string) => <span className='text-gray-700'>{value}</span>},
+    { 
+      key: 'saleDate', 
+      header: 'Fecha',
+      render: (value: string) => <span className='text-gray-700'>{formatters.date(value)}</span>
+    },
+    { 
+      key: 'quantity', 
+      header: 'Cantidad',  
+      render: (value: number) => <span className='text-gray-700'>{formatters.number(value || 0)}</span>
+    },
     { 
       key: 'unitPrice', 
       header: 'Precio Unit.',
-      render: (value: number) => <span className='text-gray-700'>{formatters.currency(value)}</span>
+      render: (value: number) => <span className='text-gray-700'>{formatters.currency(value || 0)}</span>
     },
     { 
       key: 'subtotal', 
       header: 'Subtotal',
-      render: (value: number) => <span className='text-gray-700'>{formatters.currency(value)}</span>
+      render: (value: number) => <span className='text-gray-700 font-medium'>{formatters.currency(value || 0)}</span>
     },
-    { key: 'storeName', header: 'Tienda',  render: (value: string) => <span className='text-gray-700'>{value}</span>},
-    { key: 'clientName', header: 'Cliente', render: (value: string) => <span className='text-gray-700'>{value}</span>}
+    { 
+      key: 'storeName', 
+      header: 'Tienda',  
+      render: (value: string) => <span className='text-gray-700'>{value || 'N/A'}</span>
+    },
+    { 
+      key: 'clientName', 
+      header: 'Cliente', 
+      render: (value: string) => <span className='text-gray-700'>{value || 'Sin cliente'}</span>
+    }
   ];
 
-  const summaryContent = state.data && state.data.batchInfo ? (
+  // ✅ CORREGIDO: Calcular summary en el frontend según la estructura real del backend
+  const calculatedSummary = React.useMemo(() => {
+    if (!state.data) return null;
+
+    const totalProduced = state.data.initialQuantity || 0;
+    const totalSold = state.data.sales?.reduce((sum, sale) => sum + (sale.quantity || 0), 0) || 0;
+    const totalMoved = state.data.movements?.filter(m => m.movementType === 'TRANSFER')
+      .reduce((sum, movement) => sum + (movement.quantity || 0), 0) || 0;
+    const remaining = state.data.currentQuantity || 0;
+
+    return {
+      totalProduced,
+      totalSold,
+      totalMoved,
+      remaining
+    };
+  }, [state.data]);
+
+  // ✅ CORREGIDO: Contenido del resumen según estructura real
+  const summaryContent = state.data ? (
     <div className="space-y-6">
       {/* Información del lote */}
       <Card title="Información del Lote">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
-          <div>
-            <strong>Código de Lote:</strong> {state.data.batchInfo.batchCode}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="text-gray-700">
+            <strong>Código de Lote:</strong> {state.data.batchCode || 'N/A'}
           </div>
-          <div>
-            <strong>Producto:</strong> {state.data.batchInfo.productName}
+          <div className="text-gray-700">
+            <strong>Producto:</strong> {state.data.productName || 'N/A'}
           </div>
-          <div>
-            <strong>Fecha Producción:</strong> {formatters.date(state.data.batchInfo.productionDate)}
+          <div className="text-gray-700">
+            <strong>Fecha Producción:</strong> {formatters.date(state.data.productionDate)}
           </div>
-          <div>
-            <strong>Fecha Vencimiento:</strong> {formatters.date(state.data.batchInfo.expirationDate)}
+          <div className="text-gray-700">
+            <strong>Fecha Vencimiento:</strong> {formatters.date(state.data.expirationDate)}
           </div>
-          <div>
-            <strong>Cantidad Inicial:</strong> {formatters.number(state.data.batchInfo.initialQuantity)}
+          <div className="text-gray-700">
+            <strong>Cantidad Inicial:</strong> {formatters.number(state.data.initialQuantity || 0)}
           </div>
-          <div>
-            <strong>Cantidad Actual:</strong> {formatters.number(state.data.batchInfo.currentQuantity)}
+          <div className="text-gray-700">
+            <strong>Cantidad Actual:</strong> {formatters.number(state.data.currentQuantity || 0)}
           </div>
         </div>
       </Card>
 
-      {/* Resumen visual */}
-      <Card title="Flujo del Lote">
-        <div className="space-y-4 text-gray-700">
-          <div>
-            <div className="flex justify-between mb-2">
-              <span>Producido</span>
-              <span>{formatters.number(state.data.summary.totalProduced)} unidades</span>
+      {/* Resumen visual calculado */}
+      {calculatedSummary && (
+        <Card title="Flujo del Lote">
+          <div className="space-y-4">
+            <div>
+              <div className="flex justify-between mb-2 text-gray-700">
+                <span>Producido</span>
+                <span>{formatters.number(calculatedSummary.totalProduced)} unidades</span>
+              </div>
+              <ProgressBar 
+                value={calculatedSummary.totalProduced} 
+                max={calculatedSummary.totalProduced || 1} 
+                variant="primary"
+              />
             </div>
-            <ProgressBar 
-              value={state.data.summary.totalProduced} 
-              max={state.data.summary.totalProduced} 
-              variant="primary"
-            />
-          </div>
-          
-          <div>
-            <div className="flex justify-between mb-2">
-              <span>Vendido</span>
-              <span>{formatters.number(state.data.summary.totalSold)} unidades</span>
+            
+            <div>
+              <div className="flex justify-between mb-2 text-gray-700">
+                <span>Vendido</span>
+                <span>{formatters.number(calculatedSummary.totalSold)} unidades</span>
+              </div>
+              <ProgressBar 
+                value={calculatedSummary.totalSold} 
+                max={calculatedSummary.totalProduced || 1} 
+                variant="success"
+              />
             </div>
-            <ProgressBar 
-              value={state.data.summary.totalSold} 
-              max={state.data.summary.totalProduced} 
-              variant="success"
-            />
-          </div>
-          
-          <div>
-            <div className="flex justify-between mb-2">
-              <span>Restante</span>
-              <span>{formatters.number(state.data.summary.remaining)} unidades</span>
+            
+            <div>
+              <div className="flex justify-between mb-2 text-gray-700">
+                <span>Transferido</span>
+                <span>{formatters.number(calculatedSummary.totalMoved)} unidades</span>
+              </div>
+              <ProgressBar 
+                value={calculatedSummary.totalMoved} 
+                max={calculatedSummary.totalProduced || 1} 
+                variant="warning"
+              />
             </div>
-            <ProgressBar 
-              value={state.data.summary.remaining} 
-              max={state.data.summary.totalProduced} 
-              variant="warning"
-            />
+            
+            <div>
+              <div className="flex justify-between mb-2 text-gray-700">
+                <span>Restante</span>
+                <span>{formatters.number(calculatedSummary.remaining)} unidades</span>
+              </div>
+              <ProgressBar 
+                value={calculatedSummary.remaining} 
+                max={calculatedSummary.totalProduced || 1} 
+                variant="info"
+              />
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       {/* Resumen numérico */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="text-center">
-          <div className="text-2xl mb-2">📦</div>
-          <div className="text-2xl font-bold text-[#7ca1eb]">
-            {formatters.number(state.data.summary.totalProduced)}
-          </div>
-          <div className="text-sm text-gray-600">Producido</div>
-        </Card>
-        
-        <Card className="text-center">
-          <div className="text-2xl mb-2">💰</div>
-          <div className="text-2xl font-bold text-green-600">
-            {formatters.number(state.data.summary.totalSold)}
-          </div>
-          <div className="text-sm text-gray-600">Vendido</div>
-        </Card>
-        
-        <Card className="text-center">
-          <div className="text-2xl mb-2">🔄</div>
-          <div className="text-2xl font-bold text-blue-600">
-            {formatters.number(state.data.summary.totalMoved)}
-          </div>
-          <div className="text-sm text-gray-600">Transferido</div>
-        </Card>
-        
-        <Card className="text-center">
-          <div className="text-2xl mb-2">📊</div>
-          <div className="text-2xl font-bold text-orange-600">
-            {formatters.number(state.data.summary.remaining)}
-          </div>
-          <div className="text-sm text-gray-600">Restante</div>
-        </Card>
-      </div>
+      {calculatedSummary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="text-center">
+            <div className="text-2xl mb-2">📦</div>
+            <div className="text-2xl font-bold text-[#7ca1eb]">
+              {formatters.number(calculatedSummary.totalProduced)}
+            </div>
+            <div className="text-sm text-gray-600">Producido</div>
+          </Card>
+          
+          <Card className="text-center">
+            <div className="text-2xl mb-2">💰</div>
+            <div className="text-2xl font-bold text-green-600">
+              {formatters.number(calculatedSummary.totalSold)}
+            </div>
+            <div className="text-sm text-gray-600">Vendido</div>
+          </Card>
+          
+          <Card className="text-center">
+            <div className="text-2xl mb-2">🔄</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {formatters.number(calculatedSummary.totalMoved)}
+            </div>
+            <div className="text-sm text-gray-600">Transferido</div>
+          </Card>
+          
+          <Card className="text-center">
+            <div className="text-2xl mb-2">📊</div>
+            <div className="text-2xl font-bold text-orange-600">
+              {formatters.number(calculatedSummary.remaining)}
+            </div>
+            <div className="text-sm text-gray-600">Restante</div>
+          </Card>
+        </div>
+      )}
     </div>
-  ) : null;
+  ) : (
+    <div className="text-center py-8">
+      <p className="text-gray-500">No se encontraron datos para este lote.</p>
+    </div>
+  );
 
   const tabsData = [
     {
@@ -336,7 +471,7 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
     },
     {
       id: 'movements',
-      label: 'Movimientos',
+      label: `Movimientos (${(state.data?.movements || []).length})`,
       content: (
         <Table
           data={state.data?.movements || []}
@@ -347,7 +482,7 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
     },
     {
       id: 'sales',
-      label: 'Ventas',
+      label: `Ventas (${(state.data?.sales || []).length})`,
       content: (
         <Table
           data={state.data?.sales || []}
@@ -438,8 +573,8 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       )}
 
       {/* Contenido del Reporte */}
-      {state.data && state.data.batchInfo && (
-        <Card title={`Trazabilidad del Lote: ${state.data.batchInfo.batchCode}`}>
+      {state.data && (
+        <Card title={`Trazabilidad del Lote: ${state.data.batchCode || 'N/A'}`}>
           <Tabs tabs={tabsData} defaultActiveTab="summary" />
         </Card>
       )}
@@ -447,6 +582,8 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       {/* Mensaje inicial */}
       {!state.data && !state.loading && !state.error && (
         <div className="text-center py-8">
+          <div className="text-4xl mb-4">🔍</div>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Trazabilidad de Lotes</h3>
           <p className="text-gray-500 mb-4">
             Busca un lote específico ingresando su código para realizar la trazabilidad completa.
           </p>

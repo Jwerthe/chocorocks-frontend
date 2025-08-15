@@ -223,7 +223,7 @@ export const Dashboard: React.FC = () => {
         storeName: ps.store.name,
         currentStock: ps.currentStock,
         minStockLevel: ps.minStockLevel,
-        status: ps.currentStock === 0 ? 'critical' : 'low'
+        status: (ps.currentStock === 0 ? 'critical' : 'low') as 'low' | 'critical'
       }))
       .sort((a, b) => a.currentStock - b.currentStock);
   };

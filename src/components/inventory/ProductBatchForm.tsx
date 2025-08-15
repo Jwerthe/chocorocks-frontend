@@ -8,7 +8,7 @@ import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
 import { Alert } from '@/components/ui/Alert';
 import { ProductBatchRequest, ProductBatchResponse, ProductResponse, StoreResponse } from '@/types';
-import { productBatchAPI, productAPI, storeAPI, productStoreAPI, ApiError } from '@/services/api';
+import { productBatchAPI, productAPI, storeAPI, ApiError } from '@/services/api';
 import { useNotification } from '@/hooks/useNotification';
 import { validators } from '@/utils/validators';
 
@@ -23,6 +23,18 @@ interface FormErrors {
   [key: string]: string;
 }
 
+interface FormData {
+  batchCode: string;
+  productId: number;
+  productionDate: string;
+  expirationDate: string;
+  initialQuantity: number;
+  currentQuantity: number;
+  batchCost: number;
+  storeId?: number;
+  isActive: boolean;
+}
+
 export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
   isOpen,
   onClose,
@@ -31,7 +43,7 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
 }) => {
   const { success, error: notifyError } = useNotification();
 
-  const [formData, setFormData] = useState<ProductBatchRequest>({
+  const [formData, setFormData] = useState<FormData>({
     batchCode: '',
     productId: 0,
     productionDate: '',
@@ -50,7 +62,6 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [errors, setErrors] = useState<FormErrors>({});
-  const [stockWarnings, setStockWarnings] = useState<string[]>([]);
 
   const generateBatchCode = useCallback((): string => {
     const date = new Date();
@@ -77,7 +88,6 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
     });
     setErrors({});
     setError('');
-    setStockWarnings([]);
     setSelectedProduct(null);
   }, [generateBatchCode]);
 
@@ -112,89 +122,6 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
     }
   }, []);
 
-  // ✅ NUEVA FUNCIÓN: Actualizar stock del producto
-  const updateProductStock = async (
-    productId: number, 
-    quantity: number, 
-    operation: 'subtract' | 'add'
-  ): Promise<void> => {
-    try {
-      const product = await productAPI.getProductById(productId);
-      // ✅ CORREGIDO: minStockLevel es el stock actual según la API
-      const currentStock = product.minStockLevel || 0;
-      
-      let newStock: number;
-      if (operation === 'subtract') {
-        newStock = Math.max(0, currentStock - quantity);
-      } else {
-        newStock = currentStock + quantity;
-      }
-
-      console.log(`📦 Actualizando stock del producto ${productId}: ${currentStock} → ${newStock}`);
-
-      // Actualizar el producto con el nuevo stock
-      const updateData = {
-        code: product.code,
-        nameProduct: product.nameProduct,
-        description: product.description || '',
-        categoryId: product.category.id,
-        flavor: product.flavor || '',
-        size: product.size || '',
-        productionCost: product.productionCost,
-        wholesalePrice: product.wholesalePrice,
-        retailPrice: product.retailPrice,
-        minStockLevel: newStock, // ✅ ACTUALIZAR: Este es el stock actual
-        imageUrl: product.imageUrl || '',
-        barcode: product.barcode || '',
-        isActive: product.isActive
-      };
-
-      await productAPI.updateProduct(productId, updateData);
-    } catch (err) {
-      console.error('Error updating product stock:', err);
-      throw new Error('Error al actualizar el stock del producto');
-    }
-  };
-
-  // ✅ NUEVA FUNCIÓN: Actualizar relación producto-tienda
-  const updateProductStoreRelation = async (
-    productId: number,
-    storeId: number,
-    quantity: number
-  ): Promise<void> => {
-    try {
-      const allProductStores = await productStoreAPI.getAllProductStores();
-      const existingRelation = allProductStores.find(ps => 
-        ps.product.id === productId && ps.store.id === storeId
-      );
-
-      if (existingRelation) {
-        // Actualizar relación existente
-        const updateData = {
-          productId: productId,
-          storeId: storeId,
-          currentStock: existingRelation.currentStock + quantity,
-          minStockLevel: existingRelation.minStockLevel
-        };
-        await productStoreAPI.updateProductStore(existingRelation.id, updateData);
-        console.log(`🏪 Actualizada relación producto-tienda: +${quantity} unidades`);
-      } else {
-        // Crear nueva relación
-        const newRelation = {
-          productId: productId,
-          storeId: storeId,
-          currentStock: quantity,
-          minStockLevel: 5 // Valor por defecto
-        };
-        await productStoreAPI.createProductStore(newRelation);
-        console.log(`🏪 Creada nueva relación producto-tienda: ${quantity} unidades`);
-      }
-    } catch (err) {
-      console.error('Error updating product-store relation:', err);
-      throw new Error('Error al actualizar la relación producto-tienda');
-    }
-  };
-
   useEffect(() => {
     if (isOpen) {
       fetchProducts();
@@ -220,36 +147,6 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
       }
     }
   }, [isOpen, editingBatch, fetchProducts, fetchStores, fetchExistingBatches, resetForm]);
-
-  // ✅ VALIDACIÓN CORREGIDA: Verificar stock disponible del producto
-  const validateStockAvailability = (): boolean => {
-    if (!selectedProduct || !formData.initialQuantity || editingBatch) {
-      return true; // No validar si no hay producto seleccionado o si está editando
-    }
-    
-    const warnings: string[] = [];
-    // ✅ CORREGIDO: minStockLevel es el stock actual
-    const currentStock = selectedProduct.minStockLevel || 0;
-    
-    console.log(`🔍 Validando stock: Producto tiene ${currentStock}, lote requiere ${formData.initialQuantity}`);
-    
-    if (formData.initialQuantity > currentStock) {
-      warnings.push(`❌ Stock insuficiente. Disponible: ${currentStock}, requerido: ${formData.initialQuantity}`);
-    } else {
-      const remainingStock = currentStock - formData.initialQuantity;
-      if (remainingStock < 10) {
-        warnings.push(`⚠️ El stock quedará bajo después de crear el lote: ${remainingStock} unidades`);
-      }
-      if (remainingStock === 0) {
-        warnings.push(`⚠️ El stock quedará en 0 después de crear el lote`);
-      }
-    }
-
-    setStockWarnings(warnings);
-    
-    // Solo permitir si hay stock suficiente
-    return formData.initialQuantity <= currentStock;
-  };
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -309,8 +206,8 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
     // Validación de cantidades
     if (formData.initialQuantity <= 0) {
       newErrors.initialQuantity = 'La cantidad inicial debe ser mayor a 0';
-    } else if (formData.initialQuantity > 10000) {
-      newErrors.initialQuantity = 'La cantidad inicial no puede ser mayor a 10,000';
+    } else if (formData.initialQuantity > 100000) {
+      newErrors.initialQuantity = 'La cantidad inicial no puede ser mayor a 100,000';
     } else if (!Number.isInteger(formData.initialQuantity)) {
       newErrors.initialQuantity = 'La cantidad inicial debe ser un número entero';
     }
@@ -321,14 +218,11 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
       newErrors.currentQuantity = 'La cantidad actual no puede ser mayor a la cantidad inicial';
     }
 
-    // ✅ VALIDACIÓN CRÍTICA: Stock disponible
-    if (!editingBatch && !validateStockAvailability()) {
-      newErrors.initialQuantity = 'Stock insuficiente para crear este lote';
-    }
-
     // Validación de costo
     if (formData.batchCost < 0) {
       newErrors.batchCost = 'El costo del lote no puede ser negativo';
+    } else if (formData.batchCost > 1000000) {
+      newErrors.batchCost = 'El costo del lote no puede ser mayor a $1,000,000';
     }
 
     setErrors(newErrors);
@@ -346,33 +240,24 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
     setError('');
 
     try {
-      const submitData = { ...formData };
-      if (!editingBatch) {
-        submitData.currentQuantity = submitData.initialQuantity;
-      }
+      const submitData: ProductBatchRequest = {
+        batchCode: formData.batchCode,
+        productId: formData.productId,
+        productionDate: formData.productionDate,
+        expirationDate: formData.expirationDate,
+        initialQuantity: formData.initialQuantity,
+        currentQuantity: editingBatch ? formData.currentQuantity : formData.initialQuantity,
+        batchCost: formData.batchCost,
+        storeId: formData.storeId,
+        isActive: formData.isActive,
+      };
 
       if (editingBatch) {
         await productBatchAPI.updateBatch(editingBatch.id, submitData);
         success('Lote actualizado correctamente');
       } else {
-        // ✅ CREAR NUEVO LOTE CON ACTUALIZACIONES DE STOCK
-        console.log('🔄 Creando nuevo lote...');
-        
-        // 1. Crear el lote
         await productBatchAPI.createBatch(submitData);
-        console.log('✅ Lote creado exitosamente');
-        
-        // 2. Actualizar stock del producto (restar la cantidad del lote)
-        await updateProductStock(formData.productId, formData.initialQuantity, 'subtract');
-        console.log('✅ Stock del producto actualizado');
-        
-        // 3. Si se asigna a una tienda, actualizar ProductStore
-        if (formData.storeId) {
-          await updateProductStoreRelation(formData.productId, formData.storeId, formData.initialQuantity);
-          console.log('✅ Relación producto-tienda actualizada');
-        }
-        
-        success('Lote creado correctamente y stock actualizado');
+        success('Lote creado correctamente');
       }
       
       onSuccess();
@@ -395,7 +280,7 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
       try {
         const product = await productAPI.getProductById(productId);
         setSelectedProduct(product);
-        console.log(`📦 Producto seleccionado: ${product.nameProduct}, Stock: ${product.minStockLevel}`);
+        console.log(`📦 Producto seleccionado: ${product.nameProduct}`);
       } catch (err) {
         setSelectedProduct(null);
         console.error('Error fetching product details:', err);
@@ -405,30 +290,40 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
     }
   };
 
-  const handleInputChange = (field: keyof ProductBatchRequest, value: string | number | boolean | undefined): void => {
+  const handleInputChange = (field: keyof FormData, value: string | number | boolean | undefined): void => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
-  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-    const value = parseInt(e.target.value) || 0;
-    handleInputChange('initialQuantity', value);
-    // Si no está editando, la cantidad actual es igual a la inicial
-    if (!editingBatch) {
-      handleInputChange('currentQuantity', value);
-    }
-  };
-
-  // Validar cuando cambie la cantidad o el producto
-  useEffect(() => {
-    if (selectedProduct && formData.initialQuantity > 0 && !editingBatch) {
-      validateStockAvailability();
-    } else {
-      setStockWarnings([]);
-    }
-  }, [selectedProduct, formData.initialQuantity, editingBatch]);
+  // ✅ CORREGIDO: Manejo mejorado de inputs numéricos
+  const handleNumberInputChange = (field: 'initialQuantity' | 'currentQuantity' | 'batchCost') => 
+    (e: React.ChangeEvent<HTMLInputElement>): void => {
+      const value = e.target.value;
+      
+      // Si está vacío, establecer como 0
+      if (value === '') {
+        handleInputChange(field, 0);
+        return;
+      }
+      
+      // Para campos de cantidad (enteros)
+      if (field === 'initialQuantity' || field === 'currentQuantity') {
+        const numValue = parseInt(value) || 0;
+        handleInputChange(field, numValue);
+        
+        // Si no está editando y es cantidad inicial, actualizar cantidad actual
+        if (field === 'initialQuantity' && !editingBatch) {
+          handleInputChange('currentQuantity', numValue);
+        }
+      } 
+      // Para costo (decimal)
+      else if (field === 'batchCost') {
+        const numValue = parseFloat(value) || 0;
+        handleInputChange(field, numValue);
+      }
+    };
 
   const handleModalClose = (): void => {
     resetForm();
@@ -439,7 +334,7 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
     { value: 0, label: 'Seleccionar producto...' },
     ...products.map(product => ({ 
       value: product.id, 
-      label: `${product.nameProduct} - ${product.flavor || 'Sin sabor'} (Stock: ${product.minStockLevel || 0})` 
+      label: `${product.nameProduct} - ${product.flavor || 'Sin sabor'}` 
     }))
   ];
 
@@ -448,7 +343,7 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
     ...stores.map(store => ({ value: store.id.toString(), label: store.name }))
   ];
 
-  // Calculate cost per unit
+  // ✅ CORREGIDO: Cálculos con formato correcto (2 decimales)
   const costPerUnit = formData.initialQuantity > 0 ? (formData.batchCost / formData.initialQuantity) : 0;
   const soldUnits = formData.initialQuantity - formData.currentQuantity;
   const remainingValue = formData.currentQuantity > 0 ? (formData.batchCost * (formData.currentQuantity / formData.initialQuantity)) : 0;
@@ -462,19 +357,8 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert variant="error" onClose={() => setError('')}>{error}</Alert>}
-        
-        {/* ✅ ALERTAS DE STOCK MEJORADAS */}
-        {stockWarnings.length > 0 && (
-          <Alert variant={stockWarnings.some(w => w.includes('❌')) ? 'error' : 'warning'}>
-            <div className="space-y-1">
-              {stockWarnings.map((warning, index) => (
-                <div key={index}>{warning}</div>
-              ))}
-            </div>
-          </Alert>
-        )}
 
-        {/* ✅ INFORMACIÓN DEL PRODUCTO SELECCIONADO */}
+        {/* ✅ INFORMACIÓN DEL PRODUCTO SELECCIONADO (SIN STOCK) */}
         {selectedProduct && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h4 className="font-medium text-blue-900 mb-2">📦 Información del Producto</h4>
@@ -487,24 +371,16 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
                 )}
               </div>
               <div>
-                <span className="text-blue-700">Stock Actual:</span>
-                <div className="font-bold text-blue-900 text-lg">{selectedProduct.minStockLevel || 0} unidades</div>
-              </div>
-              <div>
                 <span className="text-blue-700">Código:</span>
                 <div className="font-mono text-blue-900">{selectedProduct.code}</div>
               </div>
               <div>
-                <span className="text-blue-700">Stock después del lote:</span>
-                <div className={`font-bold text-lg ${
-                  (selectedProduct.minStockLevel || 0) - formData.initialQuantity < 0 
-                    ? 'text-red-600' 
-                    : (selectedProduct.minStockLevel || 0) - formData.initialQuantity < 10
-                    ? 'text-yellow-600'
-                    : 'text-green-600'
-                }`}>
-                  {Math.max(0, (selectedProduct.minStockLevel || 0) - formData.initialQuantity)} unidades
-                </div>
+                <span className="text-blue-700">Categoría:</span>
+                <div className="text-blue-900">{selectedProduct.category.name}</div>
+              </div>
+              <div>
+                <span className="text-blue-700">Precio de Venta:</span>
+                <div className="font-medium text-blue-900">${selectedProduct.retailPrice.toFixed(2)}</div>
               </div>
             </div>
           </div>
@@ -576,14 +452,15 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
             min={formData.productionDate || new Date().toISOString().split('T')[0]}
           />
 
+          {/* ✅ CORREGIDO: Input numérico mejorado */}
           <Input
             label="Cantidad Inicial*"
             type="number"
             min="1"
-            max={selectedProduct ? selectedProduct.minStockLevel : 10000}
+            max="100000"
             step="1"
-            value={formData.initialQuantity}
-            onChange={handleQuantityChange}
+            value={formData.initialQuantity || ''}
+            onChange={handleNumberInputChange('initialQuantity')}
             error={errors.initialQuantity}
             placeholder="Unidades producidas"
             disabled={!!editingBatch}
@@ -596,25 +473,22 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
               min="0"
               max={formData.initialQuantity}
               step="1"
-              value={formData.currentQuantity}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-                handleInputChange('currentQuantity', parseInt(e.target.value) || 0)
-              }
+              value={formData.currentQuantity || ''}
+              onChange={handleNumberInputChange('currentQuantity')}
               error={errors.currentQuantity}
               placeholder="Unidades disponibles"
             />
           )}
 
+          {/* ✅ CORREGIDO: Input numérico mejorado para costo */}
           <Input
             label="Costo del Lote ($)*"
             type="number"
             step="0.01"
             min="0"
-            max="100000"
-            value={formData.batchCost}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-              handleInputChange('batchCost', parseFloat(e.target.value) || 0)
-            }
+            max="1000000"
+            value={formData.batchCost || ''}
+            onChange={handleNumberInputChange('batchCost')}
             error={errors.batchCost}
             placeholder="Costo total de producción"
           />
@@ -630,14 +504,14 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
           />
         </div>
 
-        {/* Información calculada */}
+        {/* ✅ CORREGIDO: Información calculada con formato correcto */}
         {formData.initialQuantity > 0 && formData.batchCost > 0 && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <h4 className="font-medium text-green-900 mb-2">💰 Información Calculada</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-green-800">
               <div>
                 <span className="text-green-700">Costo por unidad:</span> 
-                <div className="font-bold">${costPerUnit.toFixed(4)}</div>
+                <div className="font-bold">${costPerUnit.toFixed(2)}</div>
               </div>
               {editingBatch && (
                 <>
@@ -651,7 +525,7 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
                   </div>
                   <div>
                     <span className="text-green-700">% Vendido:</span> 
-                    <div className="font-bold">{((soldUnits / formData.initialQuantity) * 100).toFixed(1)}%</div>
+                    <div className="font-bold">{((soldUnits / formData.initialQuantity) * 100).toFixed(2)}%</div>
                   </div>
                 </>
               )}
@@ -686,7 +560,7 @@ export const ProductBatchForm: React.FC<ProductBatchFormProps> = ({
           <Button
             type="submit"
             isLoading={loading}
-            disabled={loading || (stockWarnings.some(w => w.includes('❌')) && !editingBatch)}
+            disabled={loading}
           >
             {editingBatch ? 'Actualizar' : 'Registrar'} Lote
           </Button>

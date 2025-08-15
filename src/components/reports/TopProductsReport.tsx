@@ -1,4 +1,4 @@
-// src/components/reports/TopProductsReport.tsx (ACTUALIZADO - USAR REPORTS API)
+// src/components/reports/TopProductsReport.tsx - CORREGIDO
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -48,8 +48,8 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
           storeAPI.getAllStores(),
           categoryAPI.getAllCategories()
         ]);
-        setStores(storesData);
-        setCategories(categoriesData);
+        setStores(storesData || []);
+        setCategories(categoriesData || []);
       } catch (error) {
         console.error('Error loading initial data:', error);
       }
@@ -58,7 +58,7 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
     loadInitialData();
   }, []);
 
-  // ✅ NUEVO: Usar endpoint directo de reports
+  // Generar reporte usando endpoint directo de reports
   const generateReport = useCallback(async (): Promise<void> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
@@ -100,12 +100,13 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
 
     const csvContent = [
       'Reporte de Productos Más Vendidos',
-      `Período: ${state.data.period}`,
+      `Período: ${state.data.period || 'N/A'}`,
+      `Total Productos Vendidos: ${state.data.totalProductsSold || 0}`,
       '',
       'Top Productos',
       'Ranking,Producto,Código,Categoría,Cantidad Vendida,Ingresos,Ventas,Precio Promedio,Participación',
-      ...state.data.products.map(item => 
-        `${item.rank},${item.productName},${item.productCode},${item.categoryName},${item.quantitySold},${item.revenue},${item.salesCount},${item.averagePrice},${item.marketShare}%`
+      ...(state.data.products || []).map(item => 
+        `${item.rank || 0},${item.productName || ''},${item.productCode || ''},${item.categoryName || ''},${item.quantitySold || 0},${item.revenue || 0},${item.salesCount || 0},${item.averagePrice || 0},${item.marketShare || 0}%`
       )
     ].join('\n');
 
@@ -116,61 +117,83 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
     link.click();
   };
 
-  const getRankBadgeVariant = (rank: number): 'primary' | 'success' | 'warning' => {
-    if (rank <= 3) return 'success';
-    if (rank <= 10) return 'primary';
+  const getRankBadgeVariant = (rank: number | null | undefined): 'primary' | 'success' | 'warning' => {
+    const validRank = rank || 0;
+    if (validRank <= 3) return 'success';
+    if (validRank <= 10) return 'primary';
     return 'warning';
   };
 
+  // ✅ CORREGIDO: Columnas con colores mejorados y validaciones
   const topProductsColumns = [
     { 
       key: 'rank', 
       header: 'Ranking',
       render: (value: number) => (
         <Badge variant={getRankBadgeVariant(value)}>
-          #{value}
+          #{value || 0}
         </Badge>
       )
     },
-    { key: 'productName', header: 'Producto' },
-    { key: 'productCode', header: 'Código' },
-    { key: 'categoryName', header: 'Categoría' },
+    { 
+      key: 'productName', 
+      header: 'Producto',
+      render: (value: string) => <span className="text-gray-700 font-medium">{value || 'N/A'}</span>
+    },
+    { 
+      key: 'productCode', 
+      header: 'Código',
+      render: (value: string) => <span className="text-gray-700">{value || 'N/A'}</span>
+    },
+    { 
+      key: 'categoryName', 
+      header: 'Categoría',
+      render: (value: string) => <span className="text-gray-700">{value || 'N/A'}</span>
+    },
     { 
       key: 'quantitySold', 
       header: 'Cantidad Vendida',
-      render: (value: number) => formatters.number(value)
+      render: (value: number) => <span className="text-gray-700 font-medium">{formatters.number(value || 0)}</span>
     },
     { 
       key: 'revenue', 
       header: 'Ingresos',
-      render: (value: number) => formatters.currency(value)
+      render: (value: number) => <span className="text-gray-700 font-medium">{formatters.currency(value || 0)}</span>
     },
-    { key: 'salesCount', header: 'Ventas' },
+    { 
+      key: 'salesCount', 
+      header: 'Ventas',
+      render: (value: number) => <span className="text-gray-700">{formatters.number(value || 0)}</span>
+    },
     { 
       key: 'averagePrice', 
       header: 'Precio Promedio',
-      render: (value: number) => formatters.currency(value)
+      render: (value: number) => <span className="text-gray-700">{formatters.currency(value || 0)}</span>
     },
     { 
       key: 'marketShare', 
       header: 'Participación',
-      render: (value: number) => formatters.percentage(value)
+      render: (value: number) => (
+        <Badge variant="primary">
+          {formatters.percentage(value || 0)}
+        </Badge>
+      )
     }
   ];
 
-  // Crear datos para análisis por categoría
+  // ✅ CORREGIDO: Crear datos para análisis por categoría con validaciones
   const categoryPerformance = state.data ? 
-    state.data.products.reduce((acc, product) => {
-      const category = acc.find(c => c.categoryName === product.categoryName);
+    (state.data.products || []).reduce((acc, product) => {
+      const category = acc.find(c => c.categoryName === (product.categoryName || ''));
       if (category) {
-        category.totalQuantitySold += product.quantitySold;
-        category.totalRevenue += product.revenue;
+        category.totalQuantitySold += (product.quantitySold || 0);
+        category.totalRevenue += (product.revenue || 0);
         category.productsCount += 1;
       } else {
         acc.push({
-          categoryName: product.categoryName,
-          totalQuantitySold: product.quantitySold,
-          totalRevenue: product.revenue,
+          categoryName: product.categoryName || 'Sin categoría',
+          totalQuantitySold: product.quantitySold || 0,
+          totalRevenue: product.revenue || 0,
           productsCount: 1
         });
       }
@@ -184,48 +207,82 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
     : [];
 
   const categoryColumns = [
-    { key: 'categoryName', header: 'Categoría' },
+    { 
+      key: 'categoryName', 
+      header: 'Categoría',
+      render: (value: string) => <span className="text-gray-700 font-medium">{value || 'N/A'}</span>
+    },
     { 
       key: 'totalQuantitySold', 
       header: 'Cantidad Total',
-      render: (value: number) => formatters.number(value)
+      render: (value: number) => <span className="text-gray-700">{formatters.number(value || 0)}</span>
     },
     { 
       key: 'totalRevenue', 
       header: 'Ingresos Totales',
-      render: (value: number) => formatters.currency(value)
+      render: (value: number) => <span className="text-gray-700 font-medium">{formatters.currency(value || 0)}</span>
     },
-    { key: 'productsCount', header: 'Productos' }
+    { 
+      key: 'productsCount', 
+      header: 'Productos',
+      render: (value: number) => <span className="text-gray-700">{formatters.number(value || 0)}</span>
+    }
   ];
 
   const topProductsContent = state.data ? (
     <div className="space-y-6">
-      {/* Top 5 productos destacados */}
+      {/* ✅ MEJORADO: Top 5 productos destacados con validaciones */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        {state.data.products.slice(0, 5).map((product, index) => (
-          <Card key={product.rank} className="text-center">
+        {(state.data.products || []).slice(0, 5).map((product, index) => (
+          <Card key={product.rank || index} className="text-center">
             <div className="text-2xl mb-2">
               {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏆'}
             </div>
             <Badge variant={getRankBadgeVariant(product.rank)} className="mb-2">
-              #{product.rank}
+              #{product.rank || 0}
             </Badge>
-            <h4 className="font-bold text-sm mb-1">{product.productName}</h4>
-            <p className="text-xs text-gray-600 mb-2">{product.categoryName}</p>
+            <h4 className="font-bold text-sm mb-1 text-gray-700">{product.productName || 'N/A'}</h4>
+            <p className="text-xs text-gray-600 mb-2">{product.categoryName || 'Sin categoría'}</p>
             <div className="text-lg font-bold text-[#7ca1eb]">
-              {formatters.number(product.quantitySold)}
+              {formatters.number(product.quantitySold || 0)}
             </div>
             <div className="text-xs text-gray-500">unidades</div>
-            <div className="text-sm font-medium mt-1">
-              {formatters.currency(product.revenue)}
+            <div className="text-sm font-medium mt-1 text-gray-700">
+              {formatters.currency(product.revenue || 0)}
             </div>
           </Card>
         ))}
       </div>
 
+      {/* ✅ NUEVO: Métricas adicionales */}
+      <Card title="Métricas del Período">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded">
+            <div className="text-lg font-bold text-blue-600">
+              {formatters.number(state.data.totalProductsSold || 0)}
+            </div>
+            <div className="text-sm text-gray-600">Productos Vendidos</div>
+          </div>
+          <div className="p-4 bg-green-50 border border-green-200 rounded">
+            <div className="text-lg font-bold text-green-600">
+              {formatters.number((state.data.products || []).length)}
+            </div>
+            <div className="text-sm text-gray-600">Productos en Top</div>
+          </div>
+          <div className="p-4 bg-purple-50 border border-purple-200 rounded">
+            <div className="text-lg font-bold text-purple-600">
+              {formatters.currency(
+                (state.data.products || []).reduce((sum, p) => sum + (p.revenue || 0), 0)
+              )}
+            </div>
+            <div className="text-sm text-gray-600">Ingresos del Top</div>
+          </div>
+        </div>
+      </Card>
+
       {/* Tabla completa */}
       <Table
-        data={state.data.products}
+        data={state.data.products || []}
         columns={topProductsColumns}
         emptyMessage="No hay datos de productos vendidos"
       />
@@ -234,17 +291,17 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
 
   const categoryContent = categoryPerformance.length > 0 ? (
     <div className="space-y-6">
-      {/* Gráfico de barras simple con progress bars */}
+      {/* ✅ MEJORADO: Gráfico de barras visual con progress bars */}
       <Card title="Rendimiento Visual por Categoría">
         <div className="space-y-4">
           {categoryPerformance.slice(0, 10).map((category, index) => {
             const maxQuantity = Math.max(...categoryPerformance.map(c => c.totalQuantitySold));
-            const percentage = (category.totalQuantitySold / maxQuantity) * 100;
+            const percentage = maxQuantity > 0 ? (category.totalQuantitySold / maxQuantity) * 100 : 0;
             
             return (
               <div key={category.categoryName} className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="font-medium">{category.categoryName}</span>
+                  <span className="font-medium text-gray-700">{category.categoryName}</span>
                   <div className="text-sm text-gray-600">
                     {formatters.number(category.totalQuantitySold)} unidades
                   </div>
@@ -254,6 +311,10 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
                   max={100} 
                   variant={index < 3 ? 'success' : 'primary'}
                 />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>{category.productsCount} productos</span>
+                  <span>{formatters.currency(category.totalRevenue)}</span>
+                </div>
               </div>
             );
           })}
@@ -267,7 +328,11 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
         emptyMessage="No hay datos de categorías"
       />
     </div>
-  ) : null;
+  ) : (
+    <div className="text-center py-8">
+      <p className="text-gray-500">No hay datos suficientes para mostrar el análisis por categoría.</p>
+    </div>
+  );
 
   const tabsData = [
     {
@@ -368,10 +433,10 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
       {/* Información del reporte */}
       {state.data && (
         <Alert variant="info">
-          <div className="text-center">
-            <strong>Reporte Generado:</strong> {state.data.period} | 
-            Top {state.data.products.length} productos más vendidos | 
-            Total productos vendidos: {formatters.number(state.data.totalProductsSold)}
+          <div className="text-center text-gray-700">
+            <strong>Reporte Generado:</strong> {state.data.period || 'Período seleccionado'} | 
+            Top {(state.data.products || []).length} productos más vendidos | 
+            Total productos vendidos: {formatters.number(state.data.totalProductsSold || 0)}
           </div>
         </Alert>
       )}
@@ -386,7 +451,12 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
       {/* Mensaje inicial */}
       {!state.data && !state.loading && !state.error && (
         <div className="text-center py-8">
-          <p className="text-gray-500">Selecciona los filtros y haz clic en "Generar Reporte" para comenzar.</p>
+          <div className="text-4xl mb-4">🏆</div>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Top Productos Más Vendidos</h3>
+          <p className="text-gray-500 mb-4">Selecciona los filtros y haz clic en "Generar Reporte" para comenzar.</p>
+          <p className="text-sm text-gray-400">
+            Este reporte incluye ranking de productos, análisis por categoría y métricas de participación.
+          </p>
         </div>
       )}
     </div>

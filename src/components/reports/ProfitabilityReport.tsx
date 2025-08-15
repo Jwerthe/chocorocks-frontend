@@ -1,4 +1,4 @@
-// src/components/reports/ProfitabilityReport.tsx (ACTUALIZADO - USAR REPORTS API)
+// src/components/reports/ProfitabilityReport.tsx - CORREGIDO
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -46,8 +46,8 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
           storeAPI.getAllStores(),
           categoryAPI.getAllCategories()
         ]);
-        setStores(storesData);
-        setCategories(categoriesData);
+        setStores(storesData || []);
+        setCategories(categoriesData || []);
       } catch (error) {
         console.error('Error loading initial data:', error);
       }
@@ -56,7 +56,7 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
     loadInitialData();
   }, []);
 
-  // ✅ NUEVO: Usar endpoint directo de reports
+  // Generar reporte usando endpoint directo de reports
   const generateReport = useCallback(async (): Promise<void> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
@@ -94,21 +94,21 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       `Período: ${state.filters.startDate} - ${state.filters.endDate}`,
       '',
       'Resumen General',
-      `Ingresos Totales,${formatters.currency(state.data.totalRevenue)}`,
-      `Costos Totales,${formatters.currency(state.data.totalCosts)}`,
-      `Utilidad Bruta,${formatters.currency(state.data.grossProfit)}`,
-      `Margen de Utilidad,${formatters.percentage(state.data.profitMargin)}`,
+      `Ingresos Totales,${formatters.currency(state.data.totalRevenue || 0)}`,
+      `Costos Totales,${formatters.currency(state.data.totalCosts || 0)}`,
+      `Utilidad Bruta,${formatters.currency(state.data.grossProfit || 0)}`,
+      `Margen de Utilidad,${formatters.percentage(state.data.profitMargin || 0)}`,
       '',
       'Rentabilidad por Producto',
       'Producto,Ingresos,Costos,Utilidad,Margen,Unidades Vendidas',
-      ...state.data.profitabilityByProduct.map(item => 
-        `${item.productName},${item.revenue},${item.costs},${item.profit},${item.margin}%,${item.unitsSold}`
+      ...(state.data.profitabilityByProduct || []).map(item => 
+        `${item.productName},${item.revenue || 0},${item.costs || 0},${item.profit || 0},${item.margin || 0}%,${item.unitsSold || 0}`
       ),
       '',
       'Rentabilidad por Tienda',
       'Tienda,Ingresos,Costos,Utilidad,Margen',
-      ...state.data.profitabilityByStore.map(item => 
-        `${item.storeName},${item.revenue},${item.costs},${item.profit},${item.margin}%`
+      ...(state.data.profitabilityByStore || []).map(item => 
+        `${item.storeName},${item.revenue || 0},${item.costs || 0},${item.profit || 0},${item.margin || 0}%`
       )
     ].join('\n');
 
@@ -119,99 +119,159 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
     link.click();
   };
 
-  const getMarginVariant = (margin: number): 'success' | 'warning' | 'danger' => {
-    if (margin >= 30) return 'success';
-    if (margin >= 15) return 'warning';
+  const getMarginVariant = (margin: number | null | undefined): 'success' | 'warning' | 'danger' => {
+    const validMargin = margin || 0;
+    if (validMargin >= 30) return 'success';
+    if (validMargin >= 15) return 'warning';
     return 'danger';
   };
 
+  // ✅ CORREGIDO: Validación de datos y cálculos seguros
   const summaryCards = state.data ? [
     {
       title: 'Ingresos Totales',
-      value: formatters.currency(state.data.totalRevenue),
+      value: formatters.currency(state.data.totalRevenue || 0),
       icon: '💰',
       variant: 'primary' as const
     },
     {
       title: 'Costos Totales',
-      value: formatters.currency(state.data.totalCosts),
+      value: formatters.currency(state.data.totalCosts || 0),
       icon: '📊',
       variant: 'secondary' as const
     },
     {
       title: 'Utilidad Bruta',
-      value: formatters.currency(state.data.grossProfit),
+      value: formatters.currency(state.data.grossProfit || 0),
       icon: '📈',
-      variant: state.data.grossProfit >= 0 ? 'success' as const : 'danger' as const
+      variant: (state.data.grossProfit || 0) >= 0 ? 'success' as const : 'danger' as const
     },
     {
       title: 'Margen de Utilidad',
-      value: formatters.percentage(state.data.profitMargin),
+      value: formatters.percentage(state.data.profitMargin || 0),
       icon: '🎯',
       variant: getMarginVariant(state.data.profitMargin)
     }
   ] : [];
 
+  // ✅ CORREGIDO: Columnas con colores mejorados y validaciones
   const productColumns = [
-    { key: 'productName', header: 'Producto' },
+    { 
+      key: 'productName', 
+      header: 'Producto',
+      render: (value: string) => <span className="text-gray-700 font-medium">{value || 'N/A'}</span>
+    },
     { 
       key: 'revenue', 
       header: 'Ingresos',
-      render: (value: number) => formatters.currency(value)
+      render: (value: number) => <span className="text-gray-700">{formatters.currency(value || 0)}</span>
     },
     { 
       key: 'costs', 
       header: 'Costos',
-      render: (value: number) => formatters.currency(value)
+      render: (value: number) => <span className="text-gray-700">{formatters.currency(value || 0)}</span>
     },
     { 
       key: 'profit', 
       header: 'Utilidad',
-      render: (value: number) => (
-        <span className={value >= 0 ? 'text-green-600' : 'text-red-600'}>
-          {formatters.currency(value)}
-        </span>
-      )
+      render: (value: number) => {
+        const profit = value || 0;
+        return (
+          <span className={profit >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+            {formatters.currency(profit)}
+          </span>
+        );
+      }
     },
     { 
       key: 'margin', 
       header: 'Margen',
       render: (value: number) => (
         <Badge variant={getMarginVariant(value)}>
-          {formatters.percentage(value)}
+          {formatters.percentage(value || 0)}
         </Badge>
       )
     },
-    { key: 'unitsSold', header: 'Unidades' }
+    { 
+      key: 'unitsSold', 
+      header: 'Unidades',
+      render: (value: number) => <span className="text-gray-700">{formatters.number(value || 0)}</span>
+    }
   ];
 
   const storeColumns = [
-    { key: 'storeName', header: 'Tienda' },
+    { 
+      key: 'storeName', 
+      header: 'Tienda',
+      render: (value: string) => <span className="text-gray-700 font-medium">{value || 'N/A'}</span>
+    },
     { 
       key: 'revenue', 
       header: 'Ingresos',
-      render: (value: number) => formatters.currency(value)
+      render: (value: number) => <span className="text-gray-700">{formatters.currency(value || 0)}</span>
     },
     { 
       key: 'costs', 
       header: 'Costos',
-      render: (value: number) => formatters.currency(value)
+      render: (value: number) => <span className="text-gray-700">{formatters.currency(value || 0)}</span>
     },
     { 
       key: 'profit', 
       header: 'Utilidad',
-      render: (value: number) => (
-        <span className={value >= 0 ? 'text-green-600' : 'text-red-600'}>
-          {formatters.currency(value)}
-        </span>
-      )
+      render: (value: number) => {
+        const profit = value || 0;
+        return (
+          <span className={profit >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+            {formatters.currency(profit)}
+          </span>
+        );
+      }
     },
     { 
       key: 'margin', 
       header: 'Margen',
       render: (value: number) => (
         <Badge variant={getMarginVariant(value)}>
-          {formatters.percentage(value)}
+          {formatters.percentage(value || 0)}
+        </Badge>
+      )
+    }
+  ];
+
+  const categoryColumns = [
+    { 
+      key: 'categoryName', 
+      header: 'Categoría',
+      render: (value: string) => <span className="text-gray-700 font-medium">{value || 'N/A'}</span>
+    },
+    { 
+      key: 'revenue', 
+      header: 'Ingresos',
+      render: (value: number) => <span className="text-gray-700">{formatters.currency(value || 0)}</span>
+    },
+    { 
+      key: 'costs', 
+      header: 'Costos',
+      render: (value: number) => <span className="text-gray-700">{formatters.currency(value || 0)}</span>
+    },
+    { 
+      key: 'profit', 
+      header: 'Utilidad',
+      render: (value: number) => {
+        const profit = value || 0;
+        return (
+          <span className={profit >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+            {formatters.currency(profit)}
+          </span>
+        );
+      }
+    },
+    { 
+      key: 'profitMargin', 
+      header: 'Margen',
+      render: (value: number) => (
+        <Badge variant={getMarginVariant(value)}>
+          {formatters.percentage(value || 0)}
         </Badge>
       )
     }
@@ -233,17 +293,18 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
             ))}
           </div>
           
+          {/* ✅ MEJORADO: Distribución visual de costos vs ingresos */}
           {state.data && (
             <Card title="Distribución de Costos vs Ingresos">
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-gray-700 mb-2">
                     <span>Ingresos</span>
-                    <span>{formatters.currency(state.data.totalRevenue)}</span>
+                    <span>{formatters.currency(state.data.totalRevenue || 0)}</span>
                   </div>
                   <ProgressBar 
-                    value={state.data.totalRevenue} 
-                    max={state.data.totalRevenue} 
+                    value={state.data.totalRevenue || 0} 
+                    max={state.data.totalRevenue || 1} 
                     variant="success"
                   />
                 </div>
@@ -251,11 +312,11 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
                 <div>
                   <div className="flex justify-between text-gray-700 mb-2">
                     <span>Costos</span>
-                    <span>{formatters.currency(state.data.totalCosts)}</span>
+                    <span>{formatters.currency(state.data.totalCosts || 0)}</span>
                   </div>
                   <ProgressBar 
-                    value={state.data.totalCosts} 
-                    max={state.data.totalRevenue} 
+                    value={state.data.totalCosts || 0} 
+                    max={state.data.totalRevenue || 1} 
                     variant="danger"
                   />
                 </div>
@@ -263,15 +324,41 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
                 <div>
                   <div className="flex justify-between text-gray-700 mb-2">
                     <span>Utilidad Bruta</span>
-                    <span className={state.data.grossProfit >= 0 ? 'text-green-600' : 'text-red-600'}>
-                      {formatters.currency(state.data.grossProfit)}
+                    <span className={(state.data.grossProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}>
+                      {formatters.currency(state.data.grossProfit || 0)}
                     </span>
                   </div>
                   <ProgressBar 
-                    value={Math.abs(state.data.grossProfit)} 
-                    max={state.data.totalRevenue} 
-                    variant={state.data.grossProfit >= 0 ? 'success' : 'danger'}
+                    value={Math.abs(state.data.grossProfit || 0)} 
+                    max={Math.max(state.data.totalRevenue || 1, Math.abs(state.data.grossProfit || 0))} 
+                    variant={(state.data.grossProfit || 0) >= 0 ? 'success' : 'danger'}
                   />
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* ✅ NUEVO: Análisis de rentabilidad */}
+          {state.data && (
+            <Card title="Análisis de Rentabilidad">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded">
+                  <div className="text-lg font-bold text-blue-600">
+                    {formatters.percentage((state.data.totalRevenue || 0) > 0 ? ((state.data.totalCosts || 0) / (state.data.totalRevenue || 1)) * 100 : 0)}
+                  </div>
+                  <div className="text-sm text-gray-600">Proporción de Costos</div>
+                </div>
+                <div className="p-4 bg-green-50 border border-green-200 rounded">
+                  <div className="text-lg font-bold text-green-600">
+                    {formatters.percentage(state.data.profitMargin || 0)}
+                  </div>
+                  <div className="text-sm text-gray-600">Margen de Utilidad</div>
+                </div>
+                <div className="p-4 bg-purple-50 border border-purple-200 rounded">
+                  <div className="text-lg font-bold text-purple-600">
+                    {formatters.number((state.data.profitabilityByProduct || []).length)}
+                  </div>
+                  <div className="text-sm text-gray-600">Productos Analizados</div>
                 </div>
               </div>
             </Card>
@@ -298,6 +385,17 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
           data={state.data?.profitabilityByStore || []}
           columns={storeColumns}
           emptyMessage="No hay datos de rentabilidad por tienda"
+        />
+      )
+    },
+    {
+      id: 'categories',
+      label: 'Por Categoría',
+      content: (
+        <Table
+          data={state.data?.profitabilityByCategory || []}
+          columns={categoryColumns}
+          emptyMessage="No hay datos de rentabilidad por categoría"
         />
       )
     }
@@ -373,10 +471,12 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       )}
 
       {/* Alertas de rentabilidad */}
-      {state.data && state.data.profitMargin < 15 && (
+      {state.data && (state.data.profitMargin || 0) < 15 && (
         <Alert variant="warning">
-          <strong>Margen de Utilidad Bajo:</strong> El margen de utilidad actual es {formatters.percentage(state.data.profitMargin)}, 
-          lo cual está por debajo del 15% recomendado.
+          <div className="text-gray-700">
+            <strong>Margen de Utilidad Bajo:</strong> El margen de utilidad actual es {formatters.percentage(state.data.profitMargin || 0)}, 
+            lo cual está por debajo del 15% recomendado.
+          </div>
         </Alert>
       )}
 
@@ -390,7 +490,12 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       {/* Mensaje inicial */}
       {!state.data && !state.loading && !state.error && (
         <div className="text-center py-8">
-          <p className="text-gray-500">Selecciona los filtros y haz clic en "Generar Reporte" para comenzar.</p>
+          <div className="text-4xl mb-4">📈</div>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Reporte de Rentabilidad</h3>
+          <p className="text-gray-500 mb-4">Selecciona los filtros y haz clic en "Generar Reporte" para comenzar.</p>
+          <p className="text-sm text-gray-400">
+            Este reporte incluye análisis de costos, utilidades y márgenes por producto, categoría y tienda.
+          </p>
         </div>
       )}
     </div>
