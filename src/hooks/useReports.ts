@@ -8,7 +8,7 @@ import {
   BestSellingProductsReportResponse,
   TraceabilityReportResponse,
   ExecutiveDashboardResponse
-} from '@/types';
+} from '@/types/reports';
 import { reportsService } from '@/services/reportsService';
 import { formatters } from '@/utils/formatters';
 

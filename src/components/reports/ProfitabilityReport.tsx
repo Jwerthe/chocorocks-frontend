@@ -13,7 +13,8 @@ import { Tabs } from '@/components/ui/Tabs';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { formatters } from '@/utils/formatters';
 import { ReportProps, ReportFilters } from '@/types/reports';
-import { ProfitabilityReportResponse, StoreResponse, CategoryResponse } from '@/types';
+import { StoreResponse, CategoryResponse } from '@/types';
+import { ProfitabilityReportResponse } from '@/types/reports';
 import { storeAPI, categoryAPI } from '@/services/api';
 import { reportsService } from '@/services/reportsService';
 
@@ -101,14 +102,14 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       '',
       'Rentabilidad por Producto',
       'Producto,Ingresos,Costos,Utilidad,Margen,Unidades Vendidas',
-      ...(state.data.profitabilityByProduct || []).map(item => 
-        `${item.productName},${item.revenue || 0},${item.costs || 0},${item.profit || 0},${item.margin || 0}%,${item.unitsSold || 0}`
+      ...(state.data.profitByProduct || []).map(item => 
+        `${item.productName},${item.revenue || 0},${item.costs || 0},${item.profit || 0}`
       ),
       '',
       'Rentabilidad por Tienda',
       'Tienda,Ingresos,Costos,Utilidad,Margen',
-      ...(state.data.profitabilityByStore || []).map(item => 
-        `${item.storeName},${item.revenue || 0},${item.costs || 0},${item.profit || 0},${item.margin || 0}%`
+      ...(state.data.profitByStore || []).map(item => 
+        `${item.storeName},${item.revenue || 0},${item.costs || 0},${item.profit || 0}`
       )
     ].join('\n');
 
@@ -356,7 +357,7 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
                 </div>
                 <div className="p-4 bg-purple-50 border border-purple-200 rounded">
                   <div className="text-lg font-bold text-purple-600">
-                    {formatters.number((state.data.profitabilityByProduct || []).length)}
+                    {formatters.number((state.data.profitByProduct || []).length)}
                   </div>
                   <div className="text-sm text-gray-600">Productos Analizados</div>
                 </div>
@@ -371,7 +372,7 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       label: 'Por Producto',
       content: (
         <Table
-          data={state.data?.profitabilityByProduct || []}
+          data={state.data?.profitByProduct || []}
           columns={productColumns}
           emptyMessage="No hay datos de rentabilidad por producto"
         />
@@ -382,7 +383,7 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       label: 'Por Tienda',
       content: (
         <Table
-          data={state.data?.profitabilityByStore || []}
+          data={state.data?.profitByStore || []}
           columns={storeColumns}
           emptyMessage="No hay datos de rentabilidad por tienda"
         />
@@ -393,7 +394,7 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       label: 'Por Categoría',
       content: (
         <Table
-          data={state.data?.profitabilityByCategory || []}
+          data={state.data?.profitByCategory || []}
           columns={categoryColumns}
           emptyMessage="No hay datos de rentabilidad por categoría"
         />

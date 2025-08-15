@@ -413,7 +413,7 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
               <ProgressBar 
                 value={calculatedSummary.remaining} 
                 max={calculatedSummary.totalProduced || 1} 
-                variant="info"
+                variant="primary"
               />
             </div>
           </div>

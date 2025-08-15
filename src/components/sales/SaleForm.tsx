@@ -911,7 +911,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
                 />
               )}
 
-              {availableBatches.length === 0 && newItem.productId > 0 && (
+              {availableBatches.length === 0 && newItem.productId && newItem.productId > 0 && (
                 <Alert variant="warning">
                   No hay lotes disponibles para este producto en la tienda seleccionada
                 </Alert>
@@ -1048,11 +1048,11 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       </form>
 
       {/* Cliente Form Modal */}
-      <ClientForm
+      {/* <ClientForm
         isOpen={showClientForm}
         onClose={() => setShowClientForm(false)}
         onSuccess={handleClientCreated}
-      />
+      /> */}
     </Modal>
   );
 };

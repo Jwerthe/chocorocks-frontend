@@ -231,8 +231,8 @@ export const InventoryMovementsList: React.FC = () => {
       }
     }
 
-    return matchesSearch && matchesType && matchesReason && matchesProduct && 
-           matchesUser && matchesStore && matchesStartDate && matchesEndDate;
+    return !!(matchesSearch && matchesType && matchesReason && matchesProduct && 
+          matchesUser && matchesStore && matchesStartDate && matchesEndDate);
   });
 
   // Select options

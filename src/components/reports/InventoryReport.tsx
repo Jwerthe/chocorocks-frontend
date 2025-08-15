@@ -12,7 +12,8 @@ import { Tabs } from '@/components/ui/Tabs';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatters } from '@/utils/formatters';
 import { ReportProps } from '@/types/reports';
-import { InventoryReportResponse, StoreResponse, CategoryResponse } from '@/types';
+import { StoreResponse, CategoryResponse } from '@/types';
+import { InventoryReportResponse } from '@/types/reports';
 import { storeAPI, categoryAPI } from '@/services/api';
 import { reportsService } from '@/services/reportsService';
 

@@ -12,7 +12,8 @@ import { Alert } from '@/components/ui/Alert';
 import { Tabs } from '@/components/ui/Tabs';
 import { formatters } from '@/utils/formatters';
 import { ReportProps, ReportFilters } from '@/types/reports';
-import { SalesReportResponse, StoreResponse } from '@/types';
+import { StoreResponse } from '@/types';
+import { SalesReportResponse } from '@/types/reports';
 import { storeAPI } from '@/services/api';
 import { reportsService } from '@/services/reportsService';
 
@@ -235,7 +236,7 @@ export const SalesReport: React.FC<ReportProps> = ({ onClose }) => {
       label: 'Por Producto',
       content: (
         <Table
-          data={state.data?.topSellingProducts || state.data?.salesByProduct || []}
+          data={state.data?.topSellingProducts || []}
           columns={productColumns}
           emptyMessage="No hay datos de productos vendidos"
         />

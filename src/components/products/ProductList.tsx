@@ -14,7 +14,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { BackendErrorHandler } from '../common/BackendErrorHandler';
 import { ProductForm } from './ProductForm';
 import { CategoryForm } from './CategoryForm';
-import { ProductResponse, CategoryResponse, ProductFilters } from '@/types';
+import { ProductResponse, CategoryResponse } from '@/types';
 import { productAPI, categoryAPI, ApiError } from '@/services/api';
 import { useDebounce } from '@/hooks/useDebounce';
 
@@ -28,6 +28,13 @@ interface TableColumn<T> {
 interface SelectOption {
   value: string | number;
   label: string;
+}
+
+interface ProductFilters {
+  search: string;
+  categoryId: string;
+  flavor: string;
+  isActive: string;
 }
 
 export const ProductList: React.FC = () => {
@@ -45,11 +52,10 @@ export const ProductList: React.FC = () => {
   
   const [filters, setFilters] = useState<ProductFilters>({
     search: '',
-    categoryId: undefined,
+    categoryId: '',
     flavor: '',
-    isActive: undefined,
+    isActive: '',
   });
-
   const debouncedSearch = useDebounce(filters.search, 500);
 
   useEffect(() => {
@@ -159,40 +165,40 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
     fetchCategories();
   };
 
-  const handleSearch = useCallback(async (): Promise<void> => {
-    if (!filters.search && !filters.categoryId && !filters.flavor && filters.isActive === undefined) {
-      fetchProducts();
-      return;
-    }
+  // const handleSearch = useCallback(async (): Promise<void> => {
+  //   if (!filters.search && !filters.categoryId && !filters.flavor && filters.isActive === undefined) {
+  //     fetchProducts();
+  //     return;
+  //   }
 
-    setLoading(true);
-    setError('');
-    try {
-      const data = await productAPI.searchProducts(filters);
-      setProducts(data);
-    } catch (err) {
-      // If search endpoint doesn't exist, fallback to client-side filtering
-      if (err instanceof ApiError && err.status === 404) {
-        await fetchProducts();
-      } else {
-        const errorMessage = err instanceof ApiError 
-          ? err.message 
-          : 'Error al buscar productos';
-        setError(errorMessage);
-        console.error('Error searching products:', err);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
+  //   setLoading(true);
+  //   setError('');
+  //   try {
+  //     const data = await productAPI.searchProducts(filters);
+  //     setProducts(data);
+  //   } catch (err) {
+  //     // If search endpoint doesn't exist, fallback to client-side filtering
+  //     if (err instanceof ApiError && err.status === 404) {
+  //       await fetchProducts();
+  //     } else {
+  //       const errorMessage = err instanceof ApiError 
+  //         ? err.message 
+  //         : 'Error al buscar productos';
+  //       setError(errorMessage);
+  //       console.error('Error searching products:', err);
+  //     }
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // }, [filters]);
 
   const clearFilters = (): void => {
-    setFilters({
-      search: '',
-      categoryId: undefined,
-      flavor: '',
-      isActive: undefined,
-    });
+  setFilters({
+    search: '',
+    categoryId: '',
+    flavor: '',
+    isActive: '',
+  });
     fetchProducts();
   };
 
@@ -207,12 +213,12 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
       product.nameProduct.toLowerCase().includes(filters.search.toLowerCase()) ||
       product.code.toLowerCase().includes(filters.search.toLowerCase());
     
-    const matchesCategory = !filters.categoryId || product.category.id === filters.categoryId;
+    const matchesCategory = !filters.categoryId || product.category.id.toString() === filters.categoryId;
     
     const matchesFlavor = !filters.flavor || 
       (product.flavor && product.flavor.toLowerCase().includes(filters.flavor.toLowerCase()));
     
-    const matchesStatus = filters.isActive === undefined || product.isActive === filters.isActive;
+    const matchesStatus = !filters.isActive || product.isActive.toString() === filters.isActive;
 
     return matchesSearch && matchesCategory && matchesFlavor && matchesStatus;
   });
@@ -406,7 +412,7 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
             value={filters.categoryId?.toString() || ''}
             onChange={(e) => setFilters(prev => ({ 
               ...prev, 
-              categoryId: e.target.value ? parseInt(e.target.value) : undefined 
+              categoryId: e.target.value
             }))}
           />
           
@@ -421,7 +427,7 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
             value={filters.isActive?.toString() || ''}
             onChange={(e) => setFilters(prev => ({ 
               ...prev, 
-              isActive: e.target.value === '' ? undefined : e.target.value === 'true' 
+              isActive: e.target.value
             }))}
           />
         </div>
@@ -430,9 +436,9 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
           <Button variant="outline" onClick={clearFilters} className="w-full sm:w-auto">
             Limpiar Filtros
           </Button>
-          <Button onClick={handleSearch} className="w-full sm:w-auto">
+          {/* <Button onClick={handleSearch} className="w-full sm:w-auto">
             Buscar
-          </Button>
+          </Button> */}
         </div>
       </Card>
 

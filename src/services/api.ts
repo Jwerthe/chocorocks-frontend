@@ -635,9 +635,9 @@ export class InventoryMovementAPI extends ApiService {
     console.log('📤 Creating inventory movement:', movement);
     
     // ✅ VALIDACIÓN: Verificar que el userId no esté vacío o sea 0
-    if (!movement.userId || movement.userId === 0) {
-      throw new ApiError('ID de usuario es requerido y debe ser válido', 400);
-    }
+  if (!movement.userId || movement.userId === '0' || movement.userId.trim() === '') {
+    throw new ApiError('ID de usuario es requerido y debe ser válido', 400);
+  }
     
     return this.post<InventoryMovementResponse>('', movement);
   }

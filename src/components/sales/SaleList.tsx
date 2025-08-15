@@ -321,8 +321,8 @@ export const SaleList: React.FC = () => {
       }
     }
 
-    return matchesSearch && matchesStore && matchesSaleType && matchesInvoiced && 
-           matchesStartDate && matchesEndDate;
+    return !!(matchesSearch && matchesStore && matchesSaleType && matchesInvoiced && 
+          matchesStartDate && matchesEndDate);
   });
 
   // Summary calculations with proper typing

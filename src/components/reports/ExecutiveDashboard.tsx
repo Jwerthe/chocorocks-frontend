@@ -339,7 +339,7 @@ export const ExecutiveDashboard: React.FC<ReportProps> = ({ onClose }) => {
           {kpiCards.map((kpi, index) => (
             <div key={index} className="text-center p-4 border border-gray-200 rounded">
               <div className="text-2xl mb-2">{kpi.icon}</div>
-              <Badge variant={kpi.variant} className="mb-2">
+              <Badge variant={kpi.variant}>
                 {kpi.value}
               </Badge>
               <div className="text-sm font-medium text-gray-700 mb-1">{kpi.title}</div>
@@ -396,7 +396,7 @@ export const ExecutiveDashboard: React.FC<ReportProps> = ({ onClose }) => {
             <Card key={index} title={kpi.title} className="text-center">
               <div className="text-4xl mb-4">{kpi.icon}</div>
               <div className="text-3xl font-bold mb-2">
-                <Badge variant={kpi.variant} className="text-lg px-4 py-2">
+                <Badge variant={kpi.variant}>
                   {kpi.value}
                 </Badge>
               </div>
