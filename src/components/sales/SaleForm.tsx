@@ -833,14 +833,14 @@ export const SaleForm: React.FC<SaleFormProps> = ({
             options={clientOptions}
             className="flex-1"
           />
-          <Button
+          {/* <Button
             type="button"
             variant="outline"
             onClick={() => setShowClientForm(true)}
             className="mt-6"
           >
             Nuevo Cliente
-          </Button>
+          </Button> */}
         </div>
 
         {/* Items de la venta */}

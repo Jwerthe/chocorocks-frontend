@@ -1,7 +1,7 @@
-// src/components/sales/SaleDetailModal.tsx (COMPLETO CON FUNCIONALIDAD DE RECIBOS)
+// src/components/sales/SaleDetailModal.tsx (ACTUALIZADO)
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
@@ -15,7 +15,7 @@ import {
 } from '@/types';
 import { ReceiptResponse } from '@/types/receipts';
 import { saleDetailAPI, ApiError } from '@/services/api';
-import { useReceipts } from '@/hooks/useReceipts';
+import { receiptService } from '@/services/receiptService';
 
 interface SaleDetailModalProps {
   isOpen: boolean;
@@ -42,13 +42,28 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
   const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
   const [existingReceipt, setExistingReceipt] = useState<ReceiptResponse | null>(null);
   const [loadingReceipt, setLoadingReceipt] = useState<boolean>(false);
-  
-  const { findReceiptBySale } = useReceipts();
+  const [receiptCheckComplete, setReceiptCheckComplete] = useState<boolean>(false);
 
+  // ✅ ACTUALIZADO: Reset states cuando cambia la venta o se abre el modal
   useEffect(() => {
     if (isOpen && sale) {
+      console.log('🔄 Modal abierto para venta:', sale.saleNumber);
+      
+      // Reset estados
+      setExistingReceipt(null);
+      setReceiptCheckComplete(false);
+      setError('');
+      
+      // Cargar datos
       fetchSaleDetails();
       checkExistingReceipt();
+    } else if (!isOpen) {
+      // Limpiar estados cuando se cierra el modal
+      console.log('🔒 Modal cerrado, limpiando estados');
+      setExistingReceipt(null);
+      setReceiptCheckComplete(false);
+      setSaleDetails([]);
+      setError('');
     }
   }, [isOpen, sale]);
 
@@ -56,51 +71,72 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
     setLoading(true);
     setError('');
     try {
-      console.log('🔍 Loading sale details for sale ID:', sale.id);
+      console.log('📋 Cargando detalles de venta ID:', sale.id);
       
-      // ✅ CORREGIDO: Obtener todos los sale details y filtrar por sale ID
       const allDetails = await saleDetailAPI.getAllSaleDetails();
       const filteredDetails = allDetails.filter(detail => detail.sale.id === sale.id);
       
-      console.log(`📋 Found ${filteredDetails.length} sale details for sale ${sale.saleNumber}`);
+      console.log(`✅ ${filteredDetails.length} detalles encontrados para venta ${sale.saleNumber}`);
       setSaleDetails(filteredDetails);
     } catch (err) {
       const errorMessage = err instanceof ApiError 
         ? err.message 
         : 'Error al cargar los detalles de la venta';
       setError(errorMessage);
-      console.error('Error fetching sale details:', err);
+      console.error('❌ Error cargando detalles:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ NEW: Check if receipt exists for this sale
-  const checkExistingReceipt = async (): Promise<void> => {
+  // ✅ ACTUALIZADO: Verificar recibo existente
+  const checkExistingReceipt = useCallback(async (): Promise<void> => {
     setLoadingReceipt(true);
+    setReceiptCheckComplete(false);
+    
     try {
-      console.log('🧾 Checking existing receipt for sale:', sale.id);
-      const receipt = await findReceiptBySale(sale.id);
-      setExistingReceipt(receipt);
-      console.log('Receipt found:', receipt ? `${receipt.receiptNumber}` : 'None');
+      console.log('🧾 Verificando recibo para venta ID:', sale.id);
+      
+      // Usar el servicio directamente
+      const receipt = await receiptService.findBySaleId(sale.id);
+      
+      if (receipt) {
+        console.log('✅ Recibo encontrado:', receipt.receiptNumber);
+        setExistingReceipt(receipt);
+      } else {
+        console.log('⚠️ No se encontró recibo para esta venta');
+        setExistingReceipt(null);
+      }
     } catch (err) {
-      console.warn('No existing receipt found or error checking:', err);
+      console.error('❌ Error verificando recibo:', err);
       setExistingReceipt(null);
+      
+      // Solo mostrar error si no es un 404
+      if (err instanceof Error && !err.message.includes('404')) {
+        setError(`Error al verificar recibo: ${err.message}`);
+      }
     } finally {
       setLoadingReceipt(false);
+      setReceiptCheckComplete(true);
     }
-  };
+  }, [sale.id]);
 
-  // ✅ NEW: Handle print/receipt generation
-  const handlePrintReceipt = (): void => {
-    setShowReceiptModal(true);
-  };
-
-  // ✅ NEW: Handle receipt modal success
-  const handleReceiptSuccess = (receipt: ReceiptResponse): void => {
+  // ✅ ACTUALIZADO: Handle receipt modal success
+  const handleReceiptSuccess = useCallback((receipt: ReceiptResponse): void => {
+    console.log('✅ Recibo creado/actualizado exitosamente:', receipt.receiptNumber);
     setExistingReceipt(receipt);
-    // Optionally close the detail modal
-    // onClose();
+    setShowReceiptModal(false);
+    
+    // Opcional: Recargar para asegurar sincronización
+    setTimeout(() => {
+      checkExistingReceipt();
+    }, 500);
+  }, [checkExistingReceipt]);
+
+  // ✅ Handle print/receipt generation
+  const handlePrintReceipt = (): void => {
+    console.log('📄 Abriendo modal de recibo, recibo existente:', existingReceipt?.receiptNumber);
+    setShowReceiptModal(true);
   };
 
   const formatCurrency = (amount: number): string => {
@@ -183,6 +219,47 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
   const calculatedSubtotal = saleDetails.reduce((sum, detail) => sum + Number(detail.subtotal), 0);
   const totalQuantity = saleDetails.reduce((sum, detail) => sum + detail.quantity, 0);
 
+  // ✅ Determinar el estado del recibo
+  const getReceiptStatus = (): React.ReactNode => {
+    if (loadingReceipt) {
+      return (
+        <div className="inline-flex items-center space-x-1">
+          <div className="animate-spin rounded-full h-3 w-3 border border-blue-500 border-t-transparent" />
+          <span className="text-xs text-gray-500">Verificando...</span>
+        </div>
+      );
+    }
+    
+    if (!receiptCheckComplete) {
+      return (
+        <Badge variant="secondary" size="sm">
+          Esperando...
+        </Badge>
+      );
+    }
+    
+    if (existingReceipt) {
+      return (
+        <div className="flex items-center space-x-2">
+          <Badge variant="success" size="sm">
+            {existingReceipt.receiptNumber}
+          </Badge>
+          {existingReceipt.isPrinted && (
+            <Badge variant="secondary" size="sm">
+              Impreso ({existingReceipt.printCount}x)
+            </Badge>
+          )}
+        </div>
+      );
+    }
+    
+    return (
+      <Badge variant="warning" size="sm">
+        Sin recibo
+      </Badge>
+    );
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -192,7 +269,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
     >
       <div className="space-y-6">
         {error && (
-          <Alert variant="error">
+          <Alert variant="error" onClose={() => setError('')}>
             {error}
           </Alert>
         )}
@@ -251,30 +328,10 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                 </div>
               )}
 
-              {/* ✅ NEW: Receipt Status Display */}
+              {/* ✅ Receipt Status Display */}
               <div>
                 <label className="text-sm font-medium text-gray-600 mr-4">Estado del Recibo:</label>
-                {loadingReceipt ? (
-                  <div className="inline-flex items-center space-x-1">
-                    <div className="animate-spin rounded-full h-3 w-3 border border-blue-500 border-t-transparent" />
-                    <span className="text-xs text-gray-500">Verificando...</span>
-                  </div>
-                ) : existingReceipt ? (
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="success" size="sm">
-                      {existingReceipt.receiptNumber}
-                    </Badge>
-                    {existingReceipt.isPrinted && (
-                      <Badge variant="secondary" size="sm">
-                        Impreso ({existingReceipt.printCount}x)
-                      </Badge>
-                    )}
-                  </div>
-                ) : (
-                  <Badge variant="warning" size="sm">
-                    Sin recibo
-                  </Badge>
-                )}
+                {getReceiptStatus()}
               </div>
             </div>
           </div>
@@ -378,18 +435,18 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
           </div>
         </Card>
 
-        {/* ✅ NEW: Receipt Information Card */}
-        {existingReceipt && (
+        {/* ✅ Receipt Information Card */}
+        {existingReceipt && receiptCheckComplete && (
           <Card title="Información del Recibo">
             <div className="bg-green-50 border border-green-200 p-4 rounded">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-green-700 font-medium">Número:</span>
-                  <span className="ml-2">{existingReceipt.receiptNumber}</span>
+                  <span className="ml-2 text-gray-700">{existingReceipt.receiptNumber}</span>
                 </div>
                 <div>
                   <span className="text-green-700 font-medium">Fecha de Emisión:</span>
-                  <span className="ml-2">{formatDate(existingReceipt.issueDate)}</span>
+                  <span className="ml-2 text-gray-700">{formatDate(existingReceipt.issueDate)}</span>
                 </div>
                 <div>
                   <span className="text-green-700 font-medium">Estado:</span>
@@ -401,7 +458,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                 </div>
                 <div>
                   <span className="text-green-700 font-medium">Impreso:</span>
-                  <span className="ml-2">
+                  <span className="ml-2 text-gray-700">
                     {existingReceipt.isPrinted ? 
                       `Sí (${existingReceipt.printCount} veces)` : 
                       'No'
@@ -411,7 +468,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                 {existingReceipt.paymentMethod && (
                   <div>
                     <span className="text-green-700 font-medium">Método de Pago:</span>
-                    <span className="ml-2">{existingReceipt.paymentMethod}</span>
+                    <span className="ml-2 text-gray-700">{existingReceipt.paymentMethod}</span>
                   </div>
                 )}
                 {existingReceipt.additionalNotes && (
@@ -434,7 +491,7 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent" />
                 <span className="text-sm text-gray-600">Verificando recibo...</span>
               </div>
-            ) : existingReceipt ? (
+            ) : receiptCheckComplete && existingReceipt ? (
               <div className="flex items-center space-x-2">
                 <Badge variant="success" size="sm">
                   Recibo: {existingReceipt.receiptNumber}
@@ -445,18 +502,18 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
                   </Badge>
                 )}
               </div>
-            ) : (
+            ) : receiptCheckComplete ? (
               <Badge variant="warning" size="sm">
                 Sin recibo generado
               </Badge>
-            )}
+            ) : null}
           </div>
 
           {/* Action Buttons */}
           <div className="flex space-x-3">
             <button
               onClick={handlePrintReceipt}
-              disabled={loadingReceipt}
+              disabled={loadingReceipt || !receiptCheckComplete}
               className="px-4 py-2 bg-blue-600 text-white border-2 border-black font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title={existingReceipt ? 'Gestionar recibo existente' : 'Generar nuevo recibo'}
             >
@@ -472,14 +529,16 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
         </div>
       </div>
 
-      {/* ✅ NEW: Receipt Modal */}
-      <ReceiptModal
-        isOpen={showReceiptModal}
-        onClose={() => setShowReceiptModal(false)}
-        onSuccess={handleReceiptSuccess}
-        sale={sale}
-        existingReceipt={existingReceipt}
-      />
+      {/* ✅ Receipt Modal */}
+      {showReceiptModal && (
+        <ReceiptModal
+          isOpen={showReceiptModal}
+          onClose={() => setShowReceiptModal(false)}
+          onSuccess={handleReceiptSuccess}
+          sale={sale}
+          existingReceipt={existingReceipt}
+        />
+      )}
     </Modal>
   );
 };

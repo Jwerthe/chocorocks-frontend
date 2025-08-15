@@ -441,13 +441,13 @@ export const SaleList: React.FC = () => {
           >
             Ver
           </Button>
-          <Button
+          {/* <Button
             size="sm"
             variant="secondary"
             onClick={() => handleEditSale(row)}
           >
             Editar
-          </Button>
+          </Button> */}
           {/* <Button
             size="sm"
             variant="danger"

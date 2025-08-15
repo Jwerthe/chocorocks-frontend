@@ -154,12 +154,36 @@ class ReceiptService extends ApiService {
 
   async findBySaleId(saleId: number): Promise<ReceiptResponse | null> {
     try {
-      return await this.get<ReceiptResponse>(`/by-sale/${saleId}`);
+      console.log(`🔍 Buscando recibo para venta ID: ${saleId}`);
+      
+      // Obtener TODOS los recibos y filtrar localmente
+      const allReceipts = await this.getAllReceipts();
+      console.log(`📋 Total de recibos encontrados: ${allReceipts.length}`);
+      
+      // Filtrar por sale.id
+      const saleReceipt = allReceipts.find(receipt => receipt.sale.id === saleId);
+      
+      if (saleReceipt) {
+        console.log(`✅ Recibo encontrado: ${saleReceipt.receiptNumber} para venta ${saleId}`);
+        return saleReceipt;
+      } else {
+        console.log(`⚠️ No se encontró recibo para la venta ${saleId}`);
+        return null;
+      }
     } catch (error: any) {
+      console.error(`❌ Error buscando recibo para venta ${saleId}:`, error);
+      
+      // Si hay error al obtener recibos, retornar null en lugar de lanzar error
       if (error.message.includes('404') || error.message.includes('Not Found')) {
         return null;
       }
-      throw error;
+      
+      // Para otros errores (401, 403, etc.), sí los propagamos
+      if (error.message.includes('401') || error.message.includes('403')) {
+        throw error;
+      }
+      
+      return null;
     }
   }
 
