@@ -242,7 +242,10 @@ export const StoreForm: React.FC<StoreFormProps> = ({
           <Input
             label="Teléfono"
             value={formData.phoneNumber}
-            onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
+            onChange={(e) => {
+              const onlyNums = e.target.value.replace(/\D/g, '');
+              handleInputChange('phoneNumber', onlyNums);
+            }}
             error={errors.phoneNumber}
             placeholder="0987654321"
             maxLength={15}

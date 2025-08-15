@@ -229,7 +229,10 @@ export const UserForm: React.FC<UserFormProps> = ({
           <Input
             label="Número de Teléfono"
             value={formData.phoneNumber}
-            onChange={handleInputChange('phoneNumber')}
+            onChange={(e) => {
+            const onlyNums = e.target.value.replace(/\D/g, '');
+            handleInputChange('phoneNumber')( { target: { value: onlyNums } } as any );
+            }}
             error={errors.phoneNumber}
             placeholder="09xxxxxxxx"
           />

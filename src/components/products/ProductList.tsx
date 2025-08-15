@@ -18,6 +18,20 @@ import { ProductResponse, CategoryResponse } from '@/types';
 import { productAPI, categoryAPI, ApiError } from '@/services/api';
 import { useDebounce } from '@/hooks/useDebounce';
 
+interface ProductFilters {
+  search: string;
+  categoryId?: number;
+  flavor: string;
+  isActive?: boolean;
+}
+
+interface ProductFilters {
+  search: string;
+  categoryId?: number;
+  flavor: string;
+  isActive?: boolean;
+}
+
 interface TableColumn<T> {
   key: string;
   header: string;

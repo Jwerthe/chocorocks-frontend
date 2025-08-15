@@ -191,7 +191,7 @@ class ReceiptService extends ApiService {
   }
 
   async generateReceiptXmlBytes(receiptId: number): Promise<Blob> {
-    const response = await fetch(`${this.baseUrl}/${receiptId}/xml/bytes`, {
+    const response = await fetch(`${this.baseUrl}/${receiptId}/download-xml`, {
       headers: this.getAuthHeaders()
     });
     

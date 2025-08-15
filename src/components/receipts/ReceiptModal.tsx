@@ -283,15 +283,16 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   <p className="mt-1 text-gray-700">{currentReceipt.additionalNotes}</p>
                 </div>
               )}
-              
+              /*
               <div className="flex flex-wrap gap-2">
-                <Button
+                {/*<Button
                   size="sm"
                   onClick={() => handlePrint(currentReceipt.id)}
                   disabled={processing}
                 >
                   🖨️ Imprimir
                 </Button>
+                */}
                 
                 <Button
                   size="sm"
@@ -302,14 +303,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   📄 Descargar XML
                 </Button>
                 
-                <Button
+                {/*<Button
                   size="sm"
                   variant="secondary"
                   onClick={() => handleDownloadPdf(currentReceipt.id)}
                   disabled={processing}
                 >
                   📑 Descargar PDF
-                </Button>
+                </Button>*/}
               </div>
             </div>
 

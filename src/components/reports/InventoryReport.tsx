@@ -64,11 +64,12 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
         state.selectedStoreId || undefined,
         state.selectedCategoryId || undefined
       );
-      setState(prev => ({ 
-        ...prev, 
-        data: report, 
-        loading: false 
+      setState(prev => ({
+        ...prev,
+        data: report as InventoryReportResponse,
+        loading: false,
       }));
+
     } catch (error) {
       setState(prev => ({ 
         ...prev, 
