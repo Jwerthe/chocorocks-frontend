@@ -291,27 +291,27 @@ export const ProductStoreList: React.FC = () => {
         </div>
       ),
     },
-    {
-      key: 'currentStock',
-      header: 'Stock Actual',
-      render: (value: unknown, row: ProductStoreResponse): React.ReactNode => {
-        const stockInfo = getStockStatus(row.currentStock, row.minStockLevel);
-        return (
-          <div className="text-center">
-            <div className={`font-bold text-lg ${
-              stockInfo.status === 'normal' ? 'text-green-600' : 
-              stockInfo.status === 'low' ? 'text-yellow-600' : 
-              stockInfo.status === 'critical' ? 'text-orange-600' : 'text-red-600'
-            }`}>
-              {Number(value)}
-            </div>
-            <Badge variant={stockInfo.variant} size="sm">
-              {stockInfo.label}
-            </Badge>
-          </div>
-        );
-      },
-    },
+    // {
+    //   key: 'currentStock',
+    //   header: 'Stock Actual',
+    //   render: (value: unknown, row: ProductStoreResponse): React.ReactNode => {
+    //     const stockInfo = getStockStatus(row.currentStock, row.minStockLevel);
+    //     return (
+    //       <div className="text-center">
+    //         <div className={`font-bold text-lg ${
+    //           stockInfo.status === 'normal' ? 'text-green-600' : 
+    //           stockInfo.status === 'low' ? 'text-yellow-600' : 
+    //           stockInfo.status === 'critical' ? 'text-orange-600' : 'text-red-600'
+    //         }`}>
+    //           {Number(value)}
+    //         </div>
+    //         <Badge variant={stockInfo.variant} size="sm">
+    //           {stockInfo.label}
+    //         </Badge>
+    //       </div>
+    //     );
+    //   },
+    // },
     {
       key: 'lastUpdated',
       header: 'Última Actualización',

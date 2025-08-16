@@ -351,13 +351,13 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
           >
             Editar
           </Button>
-          <Button
+          {/* <Button
             size="sm"
             variant="danger"
             onClick={() => handleDeleteClick(row)}
           >
             Eliminar
-          </Button>
+          </Button> */}
         </div>
       ),
     },
