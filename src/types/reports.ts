@@ -73,10 +73,10 @@ export interface InventoryReportResponse {
   totalProducts: number;
   totalValue: number;
   stockAlerts: InventoryAlertsResponse;
-  inventoryByStore: InventoryByStoreResponse[];
-  inventoryByCategory: InventoryByCategoryResponse[];
-  lowStockProducts: LowStockProductResponse[];
-  expiringBatches: ExpiringBatchResponse[];
+  inventoryByStore: Array<InventoryByStoreResponse>;
+  inventoryByCategory: Array<InventoryByCategoryResponse>;
+  lowStockProducts: Array<LowStockProductResponse>;
+  expiringBatches: Array<ExpiringBatchResponse>;
 }
 
 export interface InventoryAlertsResponse {

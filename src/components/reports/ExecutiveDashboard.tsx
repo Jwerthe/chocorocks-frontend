@@ -21,6 +21,7 @@ interface DashboardSummaryResponse {
   period: string;
 }
 
+
 interface DashboardKPIsResponse {
   averageTicket: number;
   conversionRate: number;
@@ -85,7 +86,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ title, value, icon, trend }) 
     <div className="text-2xl font-bold text-[#7ca1eb] mb-1">{value}</div>
     <div className="text-sm text-gray-600 mb-2">{title}</div>
     {trend && (
-      <Badge variant={trend.isPositive ? "success" : "error"} className="text-xs">
+      <Badge variant={trend.isPositive ? "success" : "danger"} className="text-xs">
         {trend.isPositive ? "↗" : "↘"} {Math.abs(trend.value)}%
       </Badge>
     )}
