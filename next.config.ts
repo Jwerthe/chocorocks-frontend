@@ -1,4 +1,4 @@
-// next.config.ts (Verificado y Corregido)
+// next.config.ts
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
@@ -11,11 +11,11 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://23.20.243.209:8080'}/chocorocks/api/:path*`,
+        // ✅ CAMBIO: URL fija para evitar problemas con variables de entorno
+        destination: 'http://23.20.243.209:8080/chocorocks/api/:path*',
       },
     ];
   },
-  // Asegurar que las variables de entorno están disponibles
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
