@@ -1,28 +1,18 @@
-// src/components/reports/ExecutiveDashboard.tsx - CORREGIDO (Estructura Real del Backend)
+// src/components/reports/ExecutiveDashboard.tsx
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Table } from '@/components/ui/Table';
-import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
+import { Badge } from '@/components/ui/Badge';
 import { Tabs } from '@/components/ui/Tabs';
-import { ProgressBar } from '@/components/ui/ProgressBar';
 import { formatters } from '@/utils/formatters';
-import { ReportProps } from '@/types/reports';
 import { reportsService } from '@/services/reportsService';
 import { useAuthPermissions } from '@/hooks/useAuth';
 
-// ✅ NUEVA: Estructura real según el backend
-interface ExecutiveDashboardResponse {
-  summary: DashboardSummaryResponse;
-  kpis: DashboardKPIsResponse;
-  trends: DashboardTrendsResponse;
-  alerts: DashboardAlertsResponse;
-}
-
+// Executive Dashboard Response Types (based on backend structure)
 interface DashboardSummaryResponse {
   totalRevenue: number;
   totalSales: number;
@@ -30,6 +20,7 @@ interface DashboardSummaryResponse {
   activeStores: number;
   period: string;
 }
+
 
 interface DashboardKPIsResponse {
   averageTicket: number;
@@ -39,15 +30,15 @@ interface DashboardKPIsResponse {
   customerRetention: number;
 }
 
+interface TrendDataPoint {
+  date: string;
+  value: number;
+}
+
 interface DashboardTrendsResponse {
   salesTrend: TrendDataPoint[];
   revenueTrend: TrendDataPoint[];
   inventoryTrend: TrendDataPoint[];
-}
-
-interface TrendDataPoint {
-  date: string; // LocalDate se serializa como string
-  value: number;
 }
 
 interface DashboardAlertsResponse {
@@ -57,6 +48,19 @@ interface DashboardAlertsResponse {
   systemAlerts: string[];
 }
 
+interface ExecutiveDashboardResponse {
+  summary: DashboardSummaryResponse;
+  kpis: DashboardKPIsResponse;
+  trends: DashboardTrendsResponse;
+  alerts: DashboardAlertsResponse;
+}
+
+// Component Props
+interface ExecutiveDashboardProps {
+  onClose?: () => void;
+}
+
+// Component State
 interface ExecutiveDashboardState {
   data: ExecutiveDashboardResponse | null;
   loading: boolean;
@@ -65,8 +69,130 @@ interface ExecutiveDashboardState {
   endDate: string;
 }
 
-export const ExecutiveDashboard: React.FC<ReportProps> = ({ onClose }) => {
-  const { isAdmin, canAccessExecutiveReports } = useAuthPermissions();
+// Summary Card Component
+interface SummaryCardProps {
+  title: string;
+  value: string;
+  icon: string;
+  trend?: {
+    value: number;
+    isPositive: boolean;
+  };
+}
+
+const SummaryCard: React.FC<SummaryCardProps> = ({ title, value, icon, trend }) => (
+  <Card className="text-center p-6">
+    <div className="text-3xl mb-2">{icon}</div>
+    <div className="text-2xl font-bold text-[#7ca1eb] mb-1">{value}</div>
+    <div className="text-sm text-gray-600 mb-2">{title}</div>
+    {trend && (
+      <Badge variant={trend.isPositive ? "success" : "danger"} className="text-xs">
+        {trend.isPositive ? "↗" : "↘"} {Math.abs(trend.value)}%
+      </Badge>
+    )}
+  </Card>
+);
+
+// KPI Card Component
+interface KPICardProps {
+  title: string;
+  value: string;
+  target?: string;
+  status: 'good' | 'warning' | 'danger';
+}
+
+const KPICard: React.FC<KPICardProps> = ({ title, value, target, status }) => {
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case 'good': return 'text-green-600 bg-green-50 border-green-200';
+      case 'warning': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+      case 'danger': return 'text-red-600 bg-red-50 border-red-200';
+      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+    }
+  };
+
+  return (
+    <div className={`p-4 rounded-lg border ${getStatusColor(status)}`}>
+      <div className="text-lg font-bold">{value}</div>
+      <div className="text-sm font-medium">{title}</div>
+      {target && <div className="text-xs opacity-75">Meta: {target}</div>}
+    </div>
+  );
+};
+
+// Trend Chart Component (simplified)
+interface TrendChartProps {
+  title: string;
+  data: TrendDataPoint[];
+  color: string;
+}
+
+const TrendChart: React.FC<TrendChartProps> = ({ title, data, color }) => {
+  const maxValue = Math.max(...data.map(d => d.value), 1);
+  
+  return (
+    <div className="space-y-2">
+      <h4 className="font-medium text-gray-700">{title}</h4>
+      <div className="h-32 flex items-end justify-between gap-1">
+        {data.slice(-7).map((point, index) => (
+          <div key={index} className="flex-1 flex flex-col items-center">
+            <div
+              className={`w-full ${color} rounded-t`}
+              style={{
+                height: `${(point.value / maxValue) * 100}%`,
+                minHeight: '4px'
+              }}
+              title={`${formatters.date(point.date)}: ${formatters.currency(point.value)}`}
+            />
+            <div className="text-xs text-gray-500 mt-1">
+              {new Date(point.date).getDate()}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="text-center text-xs text-gray-500">
+        Últimos 7 días
+      </div>
+    </div>
+  );
+};
+
+// Alert Item Component
+interface AlertItemProps {
+  type: 'warning' | 'error' | 'info';
+  message: string;
+}
+
+const AlertItem: React.FC<AlertItemProps> = ({ type, message }) => {
+  const getAlertIcon = (type: string): string => {
+    switch (type) {
+      case 'warning': return '⚠️';
+      case 'error': return '🚨';
+      case 'info': return 'ℹ️';
+      default: return '📢';
+    }
+  };
+
+  const getAlertColor = (type: string): string => {
+    switch (type) {
+      case 'warning': return 'text-yellow-700 bg-yellow-50 border-yellow-200';
+      case 'error': return 'text-red-700 bg-red-50 border-red-200';
+      case 'info': return 'text-blue-700 bg-blue-50 border-blue-200';
+      default: return 'text-gray-700 bg-gray-50 border-gray-200';
+    }
+  };
+
+  return (
+    <div className={`p-3 rounded-lg border text-sm ${getAlertColor(type)}`}>
+      <span className="mr-2">{getAlertIcon(type)}</span>
+      {message}
+    </div>
+  );
+};
+
+// Main Component
+export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ onClose }) => {
+  const { canAccessExecutiveReports } = useAuthPermissions();
   
   const [state, setState] = useState<ExecutiveDashboardState>({
     data: null,
@@ -76,22 +202,20 @@ export const ExecutiveDashboard: React.FC<ReportProps> = ({ onClose }) => {
     endDate: new Date().toISOString().split('T')[0],
   });
 
-  // Verificar permisos
+  // Check permissions
   if (!canAccessExecutiveReports) {
     return (
-      <div className="text-center py-8">
-        <div className="text-red-500 text-4xl mb-4">🚫</div>
-        <h3 className="text-lg font-bold text-gray-900 mb-2">Acceso Restringido</h3>
-        <p className="text-gray-600 mb-4">
-          El Dashboard Ejecutivo está disponible solo para administradores.
-        </p>
-        <Button onClick={onClose}>
-          Volver
-        </Button>
-      </div>
+      <Alert variant="error">
+        <div className="text-center">
+          <div className="text-4xl mb-4">🔒</div>
+          <h3 className="text-lg font-bold mb-2">Acceso Restringido</h3>
+          <p>Solo los administradores pueden acceder al dashboard ejecutivo.</p>
+        </div>
+      </Alert>
     );
   }
 
+  // Generate dashboard
   const generateDashboard = useCallback(async (): Promise<void> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
@@ -100,396 +224,226 @@ export const ExecutiveDashboard: React.FC<ReportProps> = ({ onClose }) => {
         state.startDate,
         state.endDate
       );
+      
       setState(prev => ({ 
-        ...prev, 
-        data: dashboard, 
-        loading: false 
+        ...prev,
+        data: dashboard,
+        loading: false,
+        error: null
       }));
     } catch (error) {
       setState(prev => ({ 
         ...prev, 
-        error: error instanceof Error ? error.message : 'Error generando dashboard ejecutivo',
+        error: error instanceof Error ? error.message : 'Error generando dashboard',
         loading: false 
       }));
     }
   }, [state.startDate, state.endDate]);
 
-  const handleDateChange = (field: 'startDate' | 'endDate', value: string): void => {
-    setState(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  // Handle input changes
+  const handleDateChange = (field: 'startDate' | 'endDate') => 
+    (event: React.ChangeEvent<HTMLInputElement>): void => {
+      setState(prev => ({
+        ...prev,
+        [field]: event.target.value
+      }));
+    };
 
+  // Export dashboard
   const handleExport = (): void => {
     if (!state.data) return;
 
-    const csvContent = [
-      'Dashboard Ejecutivo',
-      `Período: ${state.data.summary?.period || `${state.startDate} - ${state.endDate}`}`,
-      '',
-      'Resumen',
-      `Ingresos Totales,${formatters.currency(state.data.summary?.totalRevenue || 0)}`,
-      `Total Ventas,${state.data.summary?.totalSales || 0}`,
-      `Total Productos,${state.data.summary?.totalProducts || 0}`,
-      `Tiendas Activas,${state.data.summary?.activeStores || 0}`,
-      '',
-      'KPIs',
-      `Ticket Promedio,${formatters.currency(state.data.kpis?.averageTicket || 0)}`,
-      `Tasa de Conversión,${formatters.percentage(state.data.kpis?.conversionRate || 0)}`,
-      `Rotación de Inventario,${formatters.number(state.data.kpis?.inventoryTurnover || 0)}`,
-      `Margen de Utilidad,${formatters.percentage(state.data.kpis?.profitMargin || 0)}`,
-      `Retención de Clientes,${formatters.percentage(state.data.kpis?.customerRetention || 0)}`,
-      '',
-      'Alertas',
-      `Stock Bajo,${state.data.alerts?.lowStockCount || 0}`,
-      `Lotes por Vencer,${state.data.alerts?.expiringBatchesCount || 0}`,
-      `Recibos Pendientes,${state.data.alerts?.pendingReceiptsCount || 0}`,
-      '',
-      'Tendencia de Ventas',
-      'Fecha,Valor',
-      ...(state.data.trends?.salesTrend || []).map(trend => 
-        `${trend.date || ''},${trend.value || 0}`
-      )
-    ].join('\n');
+    const csvData = [
+      ['Dashboard Ejecutivo', state.data.summary.period],
+      [''],
+      ['Resumen Ejecutivo'],
+      ['Ingresos Totales', state.data.summary.totalRevenue.toString()],
+      ['Ventas Totales', state.data.summary.totalSales.toString()],
+      ['Productos Totales', state.data.summary.totalProducts.toString()],
+      ['Tiendas Activas', state.data.summary.activeStores.toString()],
+      [''],
+      ['KPIs Clave'],
+      ['Ticket Promedio', state.data.kpis.averageTicket.toString()],
+      ['Tasa de Conversión', `${state.data.kpis.conversionRate}%`],
+      ['Rotación de Inventario', state.data.kpis.inventoryTurnover.toString()],
+      ['Margen de Ganancia', `${state.data.kpis.profitMargin}%`],
+      ['Retención de Clientes', `${state.data.kpis.customerRetention}%`],
+      [''],
+      ['Alertas del Sistema'],
+      ['Stock Bajo', state.data.alerts.lowStockCount.toString()],
+      ['Lotes por Vencer', state.data.alerts.expiringBatchesCount.toString()],
+      ['Recibos Pendientes', state.data.alerts.pendingReceiptsCount.toString()],
+    ];
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `dashboard-ejecutivo-${Date.now()}.csv`;
-    link.click();
+    reportsService.exportToCSV(csvData, 'dashboard-ejecutivo');
   };
 
-  // ✅ CORREGIDO: Función segura para determinar variante de margen
-  const getMarginVariant = (margin: number | null | undefined): 'success' | 'warning' | 'danger' => {
-    const validMargin = margin || 0;
-    if (validMargin >= 30) return 'success';
-    if (validMargin >= 15) return 'warning';
-    return 'danger';
-  };
+  // Auto-load on mount
+  useEffect(() => {
+    generateDashboard();
+  }, [generateDashboard]);
 
-  const getKPIVariant = (value: number | null | undefined, thresholds: { good: number; warning: number }): 'success' | 'warning' | 'danger' => {
-    const validValue = value || 0;
-    if (validValue >= thresholds.good) return 'success';
-    if (validValue >= thresholds.warning) return 'warning';
-    return 'danger';
-  };
-
-  // ✅ CORREGIDO: KPIs según estructura real del backend
+  // Create summary cards
   const summaryCards = state.data ? [
     {
       title: 'Ingresos Totales',
-      value: formatters.currency(state.data.summary?.totalRevenue || 0),
-      icon: '💰',
-      subtitle: `${formatters.number(state.data.summary?.totalSales || 0)} ventas`,
-      variant: 'primary' as const
+      value: formatters.currency(state.data.summary.totalRevenue),
+      icon: '💰'
+    },
+    {
+      title: 'Ventas Totales',
+      value: formatters.number(state.data.summary.totalSales),
+      icon: '📊'
     },
     {
       title: 'Productos Activos',
-      value: formatters.number(state.data.summary?.totalProducts || 0),
-      icon: '📦',
-      subtitle: 'En catálogo',
-      variant: 'secondary' as const
+      value: formatters.number(state.data.summary.totalProducts),
+      icon: '📦'
     },
     {
       title: 'Tiendas Activas',
-      value: formatters.number(state.data.summary?.activeStores || 0),
-      icon: '🏪',
-      subtitle: 'Operativas',
-      variant: 'info' as const
-    },
-    {
-      title: 'Ticket Promedio',
-      value: formatters.currency(state.data.kpis?.averageTicket || 0),
-      icon: '🎯',
-      subtitle: 'Por venta',
-      variant: 'success' as const
+      value: formatters.number(state.data.summary.activeStores),
+      icon: '🏪'
     }
   ] : [];
 
-  // ✅ NUEVO: KPIs detallados
-  const kpiCards = state.data?.kpis ? [
+  // Create KPI cards
+  const kpiCards = state.data ? [
     {
-      title: 'Margen de Utilidad',
-      value: formatters.percentage(state.data.kpis.profitMargin || 0),
-      icon: '📈',
-      variant: getMarginVariant(state.data.kpis.profitMargin),
-      description: 'Rentabilidad general'
+      title: 'Ticket Promedio',
+      value: formatters.currency(state.data.kpis.averageTicket),
+      status: state.data.kpis.averageTicket > 50 ? 'good' as const : 'warning' as const
     },
     {
       title: 'Tasa de Conversión',
-      value: formatters.percentage(state.data.kpis.conversionRate || 0),
-      icon: '🎯',
-      variant: getKPIVariant(state.data.kpis.conversionRate, { good: 15, warning: 10 }),
-      description: 'Visitantes que compran'
+      value: formatters.percentage(state.data.kpis.conversionRate),
+      status: state.data.kpis.conversionRate > 2 ? 'good' as const : 'warning' as const
     },
     {
       title: 'Rotación de Inventario',
-      value: formatters.number(state.data.kpis.inventoryTurnover || 0, 1),
-      icon: '🔄',
-      variant: getKPIVariant(state.data.kpis.inventoryTurnover, { good: 6, warning: 4 }),
-      description: 'Veces por período'
+      value: state.data.kpis.inventoryTurnover.toFixed(1),
+      status: state.data.kpis.inventoryTurnover > 4 ? 'good' as const : 'warning' as const
+    },
+    {
+      title: 'Margen de Ganancia',
+      value: formatters.percentage(state.data.kpis.profitMargin),
+      status: state.data.kpis.profitMargin > 20 ? 'good' as const : 'warning' as const
     },
     {
       title: 'Retención de Clientes',
-      value: formatters.percentage(state.data.kpis.customerRetention || 0),
-      icon: '👥',
-      variant: getKPIVariant(state.data.kpis.customerRetention, { good: 80, warning: 60 }),
-      description: 'Clientes que regresan'
+      value: formatters.percentage(state.data.kpis.customerRetention),
+      status: state.data.kpis.customerRetention > 80 ? 'good' as const : 'warning' as const
     }
   ] : [];
 
-  // ✅ NUEVO: Tabla de tendencias
-  const trendsColumns = [
-    { 
-      key: 'date', 
-      header: 'Fecha',
-      render: (value: string) => <span className="text-gray-700">{formatters.date(value)}</span>
-    },
-    { 
-      key: 'value', 
-      header: 'Valor',
-      render: (value: number) => <span className="text-gray-700 font-medium">{formatters.number(value || 0)}</span>
-    }
-  ];
+  // Create alerts
+  const alerts = state.data ? [
+    ...(state.data.alerts.lowStockCount > 0 ? [{
+      type: 'warning' as const,
+      message: `${state.data.alerts.lowStockCount} productos con stock bajo`
+    }] : []),
+    ...(state.data.alerts.expiringBatchesCount > 0 ? [{
+      type: 'error' as const,
+      message: `${state.data.alerts.expiringBatchesCount} lotes próximos a vencer`
+    }] : []),
+    ...(state.data.alerts.pendingReceiptsCount > 0 ? [{
+      type: 'info' as const,
+      message: `${state.data.alerts.pendingReceiptsCount} recibos pendientes`
+    }] : []),
+    ...state.data.alerts.systemAlerts.map(alert => ({
+      type: 'info' as const,
+      message: alert
+    }))
+  ] : [];
 
-  const alertsContent = state.data?.alerts ? (
-    <div className="space-y-4">
-      {/* Alertas numéricas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="text-center">
-          <div className="text-2xl mb-2">⚠️</div>
-          <div className="text-2xl font-bold text-yellow-600">
-            {formatters.number(state.data.alerts.lowStockCount || 0)}
-          </div>
-          <div className="text-sm text-gray-600">Productos con Stock Bajo</div>
-        </Card>
-        
-        <Card className="text-center">
-          <div className="text-2xl mb-2">📅</div>
-          <div className="text-2xl font-bold text-orange-600">
-            {formatters.number(state.data.alerts.expiringBatchesCount || 0)}
-          </div>
-          <div className="text-sm text-gray-600">Lotes por Vencer</div>
-        </Card>
-        
-        <Card className="text-center">
-          <div className="text-2xl mb-2">📄</div>
-          <div className="text-2xl font-bold text-blue-600">
-            {formatters.number(state.data.alerts.pendingReceiptsCount || 0)}
-          </div>
-          <div className="text-sm text-gray-600">Recibos Pendientes</div>
-        </Card>
-      </div>
-
-      {/* Alertas del sistema */}
-      {state.data.alerts.systemAlerts && state.data.alerts.systemAlerts.length > 0 && (
-        <Card title="Alertas del Sistema">
-          <div className="space-y-2">
-            {state.data.alerts.systemAlerts.map((alert, index) => (
-              <Alert key={index} variant="warning">
-                <span className="text-gray-700">{alert}</span>
-              </Alert>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Estado general */}
-      <Card title="Estado General del Sistema">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-green-50 border border-green-200 rounded">
-            <div className="text-sm text-gray-600 mb-1">Operaciones</div>
-            <div className="text-lg font-bold text-green-600">
-              {(state.data.alerts.lowStockCount || 0) === 0 ? 'Normal' : 'Requiere Atención'}
-            </div>
-          </div>
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded">
-            <div className="text-sm text-gray-600 mb-1">Inventario</div>
-            <div className="text-lg font-bold text-blue-600">
-              {(state.data.alerts.expiringBatchesCount || 0) === 0 ? 'Estable' : 'Revisar Vencimientos'}
-            </div>
-          </div>
-        </div>
-      </Card>
-    </div>
-  ) : (
-    <div className="text-center py-8">
-      <p className="text-gray-500">No hay alertas disponibles.</p>
-    </div>
-  );
-
-  const overviewContent = state.data ? (
-    <div className="space-y-6">
-      {/* Resumen principal */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {summaryCards.map((card, index) => (
-          <Card key={index} className="text-center">
-            <div className="text-3xl mb-2">{card.icon}</div>
-            <div className="text-2xl font-bold text-[#7ca1eb] mb-1">{card.value}</div>
-            <div className="text-sm font-medium text-gray-700">{card.title}</div>
-            <div className="text-xs text-gray-500">{card.subtitle}</div>
-          </Card>
-        ))}
-      </div>
-
-      {/* KPIs detallados */}
-      <Card title="Indicadores Clave de Rendimiento (KPIs)">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {kpiCards.map((kpi, index) => (
-            <div key={index} className="text-center p-4 border border-gray-200 rounded">
-              <div className="text-2xl mb-2">{kpi.icon}</div>
-              <Badge variant={kpi.variant} className="mb-2">
-                {kpi.value}
-              </Badge>
-              <div className="text-sm font-medium text-gray-700 mb-1">{kpi.title}</div>
-              <div className="text-xs text-gray-500">{kpi.description}</div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* Tendencias visuales */}
-      {state.data.trends?.salesTrend && state.data.trends.salesTrend.length > 0 && (
-        <Card title="Tendencia de Ventas">
-          <div className="space-y-3">
-            {state.data.trends.salesTrend.slice(-7).map((trend, index) => {
-              const maxValue = Math.max(...state.data!.trends!.salesTrend.map(t => t.value || 0));
-              const percentage = maxValue > 0 ? ((trend.value || 0) / maxValue) * 100 : 0;
-              
-              return (
-                <div key={trend.date || index} className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-gray-700">
-                      {formatters.date(trend.date, 'short')}
-                    </span>
-                    <div className="text-sm text-gray-600">
-                      {formatters.number(trend.value || 0)}
-                    </div>
-                  </div>
-                  <ProgressBar 
-                    value={percentage} 
-                    max={100} 
-                    variant="primary"
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-    </div>
-  ) : null;
-
+  // Tabs configuration
   const tabsData = [
     {
       id: 'overview',
       label: 'Resumen Ejecutivo',
-      content: overviewContent
-    },
-    {
-      id: 'kpis',
-      label: 'KPIs Detallados',
-      content: state.data?.kpis ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {kpiCards.map((kpi, index) => (
-            <Card key={index} title={kpi.title} className="text-center">
-              <div className="text-4xl mb-4">{kpi.icon}</div>
-              <div className="text-3xl font-bold mb-2">
-                <Badge variant={kpi.variant} className="text-lg px-4 py-2">
-                  {kpi.value}
-                </Badge>
-              </div>
-              <p className="text-gray-600">{kpi.description}</p>
-            </Card>
-          ))}
+      content: (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {summaryCards.map((card, index) => (
+              <SummaryCard key={index} {...card} />
+            ))}
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {kpiCards.map((kpi, index) => (
+              <KPICard key={index} {...kpi} />
+            ))}
+          </div>
         </div>
-      ) : (
-        <p className="text-center text-gray-500 py-8">No hay KPIs disponibles</p>
       )
     },
     {
       id: 'trends',
       label: 'Tendencias',
       content: (
-        <div className="space-y-6">
-          {state.data?.trends?.salesTrend && (
-            <Card title="Tendencia de Ventas">
-              <Table
-                data={state.data.trends.salesTrend || []}
-                columns={trendsColumns}
-                emptyMessage="No hay datos de tendencias de ventas"
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {state.data && (
+            <>
+              <TrendChart
+                title="Tendencia de Ventas"
+                data={state.data.trends.salesTrend}
+                color="bg-blue-500"
               />
-            </Card>
-          )}
-          
-          {state.data?.trends?.revenueTrend && (
-            <Card title="Tendencia de Ingresos">
-              <Table
-                data={state.data.trends.revenueTrend.map(trend => ({
-                  ...trend,
-                  value: formatters.currency(trend.value || 0)
-                })) || []}
-                columns={[
-                  { 
-                    key: 'date', 
-                    header: 'Fecha',
-                    render: (value: string) => <span className="text-gray-700">{formatters.date(value)}</span>
-                  },
-                  { 
-                    key: 'value', 
-                    header: 'Ingresos',
-                    render: (value: string) => <span className="text-gray-700 font-medium">{value}</span>
-                  }
-                ]}
-                emptyMessage="No hay datos de tendencias de ingresos"
+              <TrendChart
+                title="Tendencia de Ingresos"
+                data={state.data.trends.revenueTrend}
+                color="bg-green-500"
               />
-            </Card>
+              <TrendChart
+                title="Tendencia de Inventario"
+                data={state.data.trends.inventoryTrend}
+                color="bg-purple-500"
+              />
+            </>
           )}
         </div>
       )
     },
     {
       id: 'alerts',
-      label: `Alertas (${(state.data?.alerts?.lowStockCount || 0) + (state.data?.alerts?.expiringBatchesCount || 0) + (state.data?.alerts?.pendingReceiptsCount || 0)})`,
-      content: alertsContent
+      label: `Alertas (${alerts.length})`,
+      content: (
+        <div className="space-y-3">
+          {alerts.length > 0 ? (
+            alerts.map((alert, index) => (
+              <AlertItem key={index} {...alert} />
+            ))
+          ) : (
+            <div className="text-center py-8">
+              <div className="text-4xl mb-4">✅</div>
+              <p className="text-gray-500">No hay alertas activas en el sistema.</p>
+            </div>
+          )}
+        </div>
+      )
     }
   ];
 
   return (
     <div className="space-y-6">
-      {/* Header con indicador de rol */}
-      <Alert variant="info">
-        <div className="flex items-center justify-between">
-          <div className="text-gray-700 mr-4">
-            <strong>👑 Dashboard Ejecutivo</strong> - Vista exclusiva para administradores
-          </div>
-          <Badge variant="success">ADMIN</Badge>
-        </div>
-      </Alert>
-
-      {/* Filtros */}
-      <Card title="Período de Análisis">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Controls */}
+      <Card title="Configuración del Dashboard">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Input
             label="Fecha Inicio"
             type="date"
             value={state.startDate}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-              handleDateChange('startDate', e.target.value)
-            }
+            onChange={handleDateChange('startDate')}
           />
           <Input
             label="Fecha Fin"
             type="date"
             value={state.endDate}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-              handleDateChange('endDate', e.target.value)
-            }
+            onChange={handleDateChange('endDate')}
           />
           <div className="flex items-end gap-2">
             <Button onClick={generateDashboard} isLoading={state.loading}>
-              Generar Dashboard
+              Actualizar Dashboard
             </Button>
             {state.data && (
               <Button variant="outline" onClick={handleExport}>
@@ -497,6 +451,13 @@ export const ExecutiveDashboard: React.FC<ReportProps> = ({ onClose }) => {
               </Button>
             )}
           </div>
+          {onClose && (
+            <div className="flex items-end">
+              <Button variant="outline" onClick={onClose}>
+                Cerrar
+              </Button>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -507,35 +468,36 @@ export const ExecutiveDashboard: React.FC<ReportProps> = ({ onClose }) => {
         </Alert>
       )}
 
-      {/* Información del período */}
-      {state.data?.summary && (
+      {/* Period info */}
+      {state.data && (
         <Alert variant="info">
-          <div className="text-center text-gray-700">
-            <strong>Dashboard Generado:</strong> {state.data.summary.period} | 
-            Ingresos: {formatters.currency(state.data.summary.totalRevenue || 0)} | 
-            Ventas: {formatters.number(state.data.summary.totalSales || 0)} | 
-            Margen: {formatters.percentage(state.data.kpis?.profitMargin || 0)}
+          <div className="text-center">
+            <strong>Dashboard Ejecutivo:</strong> {state.data.summary.period} | 
+            <span className="ml-2">
+              Ingresos: {formatters.currency(state.data.summary.totalRevenue)} | 
+              Ventas: {formatters.number(state.data.summary.totalSales)}
+            </span>
           </div>
         </Alert>
       )}
 
-      {/* Contenido del Dashboard */}
+      {/* Dashboard Content */}
       {state.data && (
-        <Card title={`Dashboard Ejecutivo - ${state.data.summary?.period || 'Período Seleccionado'}`}>
+        <Card title="Dashboard Ejecutivo">
           <Tabs tabs={tabsData} defaultActiveTab="overview" />
         </Card>
       )}
 
-      {/* Mensaje inicial */}
+      {/* Initial message */}
       {!state.data && !state.loading && !state.error && (
         <div className="text-center py-8">
-          <div className="text-4xl mb-4">📊</div>
+          <div className="text-4xl mb-4">📈</div>
           <h3 className="text-lg font-bold text-gray-900 mb-2">Dashboard Ejecutivo</h3>
           <p className="text-gray-500 mb-4">
-            Selecciona el período de análisis y genera el dashboard con métricas clave del negocio.
+            Panel de control con métricas clave y KPIs del negocio.
           </p>
           <p className="text-sm text-gray-400">
-            Este dashboard incluye KPIs financieros, tendencias de ventas y alertas del sistema.
+            Selecciona el período y haz clic en "Actualizar Dashboard" para comenzar.
           </p>
         </div>
       )}

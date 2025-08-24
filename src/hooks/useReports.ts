@@ -8,7 +8,7 @@ import {
   BestSellingProductsReportResponse,
   TraceabilityReportResponse,
   ExecutiveDashboardResponse
-} from '@/types';
+} from '@/types/reports';
 import { reportsService } from '@/services/reportsService';
 import { formatters } from '@/utils/formatters';
 
@@ -80,7 +80,7 @@ export function useReports(options: UseReportsOptions = {}): UseReportsReturn {
     
     try {
       const report = await reportsService.generateSalesReport(filters);
-      setSalesReport(report);
+      setSalesReport(report as any);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error al generar reporte de ventas';
       setError(errorMessage);
@@ -96,7 +96,7 @@ export function useReports(options: UseReportsOptions = {}): UseReportsReturn {
     
     try {
       const report = await reportsService.generateInventoryReport(storeId, categoryId);
-      setInventoryReport(report);
+      setInventoryReport(report as any);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error al generar reporte de inventario';
       setError(errorMessage);
@@ -112,7 +112,7 @@ export function useReports(options: UseReportsOptions = {}): UseReportsReturn {
     
     try {
       const report = await reportsService.generateProfitabilityReport(filters);
-      setProfitabilityReport(report);
+      setProfitabilityReport(report as any);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error al generar reporte de rentabilidad';
       setError(errorMessage);
@@ -144,7 +144,7 @@ export function useReports(options: UseReportsOptions = {}): UseReportsReturn {
     
     try {
       const report = await reportsService.generateTraceabilityReport(batchCode);
-      setTraceabilityReport(report);
+      setTraceabilityReport(report as any);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error al generar reporte de trazabilidad';
       setError(errorMessage);
@@ -219,7 +219,7 @@ export function useReports(options: UseReportsOptions = {}): UseReportsReturn {
       return;
     }
     
-    const csvData = reportsService.formatSalesReportForCSV(salesReport);
+    const csvData = reportsService.formatSalesReportForCSV(salesReport as any);
     exportToCSV(csvData, 'reporte-ventas');
   }, [salesReport, exportToCSV]);
 
@@ -229,8 +229,8 @@ export function useReports(options: UseReportsOptions = {}): UseReportsReturn {
       setError('No hay datos de inventario para exportar');
       return;
     }
-    
-    const csvData = reportsService.formatInventoryReportForCSV(inventoryReport);
+
+    const csvData = reportsService.formatInventoryReportForCSV(inventoryReport as any);
     exportToCSV(csvData, 'reporte-inventario');
   }, [inventoryReport, exportToCSV]);
 

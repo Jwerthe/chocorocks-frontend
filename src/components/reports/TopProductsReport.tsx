@@ -238,7 +238,7 @@ export const TopProductsReport: React.FC<ReportProps> = ({ onClose }) => {
             <div className="text-2xl mb-2">
               {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏆'}
             </div>
-            <Badge variant={getRankBadgeVariant(product.rank)} className="mb-2">
+            <Badge variant={getRankBadgeVariant(product.rank)} >
               #{product.rank || 0}
             </Badge>
             <h4 className="font-bold text-sm mb-1 text-gray-700">{product.productName || 'N/A'}</h4>

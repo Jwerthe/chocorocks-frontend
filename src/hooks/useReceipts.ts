@@ -173,6 +173,9 @@ export const useReceipts = (): UseReceiptsReturn => {
       setError(errorMessage);
       return null;
     }
+    finally {
+      setLoading(false);
+    }
   }, [setLoading, setCurrentReceipt, setError]);
 
   // ✅ Complete sale with receipt (MAIN FUNCTION)

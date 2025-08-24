@@ -737,6 +737,17 @@ export interface ExecutiveDashboardResponse {
   }>;
 }
 
+import { DashboardAlertsResponse, DashboardKPIsResponse
+, DashboardSummaryResponse, DashboardTrendsResponse,
+ } from "./reports";
+
+export interface ExecutiveDashboardResponse {
+  summary: DashboardSummaryResponse;
+  kpis: DashboardKPIsResponse;
+  trends: DashboardTrendsResponse;
+  alerts: DashboardAlertsResponse;
+}
+
 // API Response wrapper
 export interface ApiResponse<T> {
   data: T;

@@ -22,7 +22,7 @@ interface SupabaseSession {
   refresh_token: string;
   user: {
     id: string;
-    email: string;
+    email?: string;
   };
 }
 

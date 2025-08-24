@@ -55,11 +55,11 @@ export const formatters = {
         return 'Fecha inválida';
       }
       
-      const options: Intl.DateTimeFormatOptions = {
-        short: { day: '2-digit', month: '2-digit', year: 'numeric' },
-        medium: { day: '2-digit', month: 'short', year: 'numeric' },
-        long: { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }
-      };
+  const options: Record<string, Intl.DateTimeFormatOptions> = {
+    short: { day: '2-digit', month: '2-digit', year: 'numeric' },
+    medium: { day: '2-digit', month: 'short', year: 'numeric' },
+    long: { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }
+  };
 
       return new Intl.DateTimeFormat('es-EC', options[format]).format(dateObj);
     } catch (error) {

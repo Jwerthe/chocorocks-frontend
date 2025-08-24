@@ -219,7 +219,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-gray-600">Número de Venta:</span>
-              <span className="ml-2 font-medium">{sale.saleNumber}</span>
+              <span className="ml-2 font-medium text-gray-700">{sale.saleNumber}</span>
             </div>
             <div>
               <span className="text-gray-600">Total:</span>
@@ -229,11 +229,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </div>
             <div>
               <span className="text-gray-600">Tienda:</span>
-              <span className="ml-2">{sale.store.name}</span>
+              <span className="ml-2 text-gray-700">{sale.store.name}</span>
             </div>
             <div>
               <span className="text-gray-600">Cliente:</span>
-              <span className="ml-2">{sale.client?.nameLastname || 'Cliente General'}</span>
+              <span className="ml-2 text-gray-700">{sale.client?.nameLastname || 'Cliente General'}</span>
             </div>
           </div>
         </div>
@@ -254,15 +254,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                 <div>
                   <span className="text-green-700">Número:</span>
-                  <span className="ml-2 font-medium">{currentReceipt.receiptNumber}</span>
+                  <span className="ml-2 font-medium text-gray-700">{currentReceipt.receiptNumber}</span>
                 </div>
                 <div>
                   <span className="text-green-700">Fecha:</span>
-                  <span className="ml-2">{formatDate(currentReceipt.issueDate)}</span>
+                  <span className="ml-2 text-gray-700">{formatDate(currentReceipt.issueDate)}</span>
                 </div>
                 <div>
                   <span className="text-green-700">Impreso:</span>
-                  <span className="ml-2">
+                  <span className="ml-2 text-gray-700">
                     {currentReceipt.isPrinted ? 
                       `Sí (${currentReceipt.printCount} veces)` : 
                       'No'
@@ -272,7 +272,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 {currentReceipt.paymentMethod && (
                   <div>
                     <span className="text-green-700">Método de Pago:</span>
-                    <span className="ml-2">{currentReceipt.paymentMethod}</span>
+                    <span className="ml-2 text-gray-700">{currentReceipt.paymentMethod}</span>
                   </div>
                 )}
               </div>
@@ -283,15 +283,16 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   <p className="mt-1 text-gray-700">{currentReceipt.additionalNotes}</p>
                 </div>
               )}
-              
+              /*
               <div className="flex flex-wrap gap-2">
-                <Button
+                {/*<Button
                   size="sm"
                   onClick={() => handlePrint(currentReceipt.id)}
                   disabled={processing}
                 >
                   🖨️ Imprimir
                 </Button>
+                */}
                 
                 <Button
                   size="sm"
@@ -302,14 +303,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   📄 Descargar XML
                 </Button>
                 
-                <Button
+                {/*<Button
                   size="sm"
                   variant="secondary"
                   onClick={() => handleDownloadPdf(currentReceipt.id)}
                   disabled={processing}
                 >
                   📑 Descargar PDF
-                </Button>
+                </Button>*/}
               </div>
             </div>
 
@@ -330,7 +331,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                     handleSendEmail(currentReceipt.id, emailData.recipientEmail)}
                   disabled={processing || !emailData.recipientEmail}
                 >
-                  📧 Enviar Email
+                  Enviar Email
                 </Button>
               </div>
             </div>
@@ -379,7 +380,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             <div className="bg-gray-50 p-4 rounded-lg">
               <h4 className="font-medium text-gray-800 mb-3">Acción después de generar:</h4>
               <div className="flex flex-wrap gap-2">
-                <Button
+                {/* <Button
                   type="button"
                   onClick={() => {
                     setAction('print');
@@ -389,7 +390,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   isLoading={processing && action === 'print'}
                 >
                   🖨️ Generar e Imprimir
-                </Button>
+                </Button> */}
                 
                 <Button
                   type="button"
@@ -401,7 +402,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   disabled={processing}
                   isLoading={processing && action === 'download'}
                 >
-                  💾 Solo Generar
+                  Generar Recibo
                 </Button>
               </div>
               

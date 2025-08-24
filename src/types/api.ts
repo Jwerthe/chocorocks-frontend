@@ -1,4 +1,6 @@
 // src/types/api.ts
+import { User } from './auth';
+
 export interface ApiResponse<T> {
   data: T;
   message?: string;

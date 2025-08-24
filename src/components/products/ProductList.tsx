@@ -14,9 +14,17 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { BackendErrorHandler } from '../common/BackendErrorHandler';
 import { ProductForm } from './ProductForm';
 import { CategoryForm } from './CategoryForm';
-import { ProductResponse, CategoryResponse, ProductFilters } from '@/types';
+import { ProductResponse, CategoryResponse } from '@/types';
 import { productAPI, categoryAPI, ApiError } from '@/services/api';
 import { useDebounce } from '@/hooks/useDebounce';
+
+// ✅ Definir la interfaz ProductFilters localmente
+interface ProductFilters {
+  search: string;
+  categoryId?: number;
+  flavor: string;
+  isActive?: boolean;
+}
 
 interface TableColumn<T> {
   key: string;
@@ -59,7 +67,7 @@ export const ProductList: React.FC = () => {
 
   useEffect(() => {
     if (debouncedSearch !== filters.search) {
-      setFilters(prev => ({ ...prev, search: debouncedSearch }));
+      setFilters((prev: ProductFilters) => ({ ...prev, search: debouncedSearch }));
     }
   }, [debouncedSearch]);
 
@@ -81,35 +89,35 @@ export const ProductList: React.FC = () => {
   };
 
   // Helper functions with proper typing
-const isValidDate = (dateString: string | null | undefined): boolean => {
-  if (!dateString) return false;
-  const date = new Date(dateString);
-  return !isNaN(date.getTime());
-};
+  const isValidDate = (dateString: string | null | undefined): boolean => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    return !isNaN(date.getTime());
+  };
 
-const safeFormatDate = (dateString: string | null | undefined): string => {
-  if (!isValidDate(dateString)) return 'Fecha inválida';
-  
-  try {
-    return new Date(dateString!).toISOString().split('T')[0];
-  } catch {
-    return '';
-  }
-};
+  const safeFormatDate = (dateString: string | null | undefined): string => {
+    if (!isValidDate(dateString)) return 'Fecha inválida';
+    
+    try {
+      return new Date(dateString!).toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
+  };
 
-const formatDisplayDate = (dateString: string | null | undefined): string => {
-  if (!isValidDate(dateString)) return 'Fecha inválida';
-  
-  try {
-    const date = new Date(dateString!);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // meses base 0
-    const year = date.getFullYear();
-    return `${day}.${month}.${year}`;
-  } catch {
-    return 'Fecha inválida';
-  }
-};
+  const formatDisplayDate = (dateString: string | null | undefined): string => {
+    if (!isValidDate(dateString)) return 'Fecha inválida';
+    
+    try {
+      const date = new Date(dateString!);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0'); // meses base 0
+      const year = date.getFullYear();
+      return `${day}.${month}.${year}`;
+    } catch {
+      return 'Fecha inválida';
+    }
+  };
 
   const fetchCategories = async (): Promise<void> => {
     try {
@@ -168,19 +176,14 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
     setLoading(true);
     setError('');
     try {
-      const data = await productAPI.searchProducts(filters);
-      setProducts(data);
+      // ✅ Removido searchProducts ya que no existe - usar filtro del lado del cliente
+      await fetchProducts();
     } catch (err) {
-      // If search endpoint doesn't exist, fallback to client-side filtering
-      if (err instanceof ApiError && err.status === 404) {
-        await fetchProducts();
-      } else {
-        const errorMessage = err instanceof ApiError 
-          ? err.message 
-          : 'Error al buscar productos';
-        setError(errorMessage);
-        console.error('Error searching products:', err);
-      }
+      const errorMessage = err instanceof ApiError 
+        ? err.message 
+        : 'Error al buscar productos';
+      setError(errorMessage);
+      console.error('Error searching products:', err);
     } finally {
       setLoading(false);
     }
@@ -261,15 +264,15 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
         </div>
       ),
     },
-         {
-         key: 'createdAt',
-          header: 'Fecha',
-         render: (value: unknown): React.ReactNode => (
-            <span className="text-sm text-gray-700">
-             {formatDisplayDate(String(value))}
-           </span>
-         ),
-        },
+    {
+      key: 'createdAt',
+      header: 'Fecha',
+      render: (value: unknown): React.ReactNode => (
+        <span className="text-sm text-gray-700">
+          {formatDisplayDate(String(value))}
+        </span>
+      ),
+    },
     {
       key: 'category.name',
       header: 'Categoría',
@@ -303,13 +306,6 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
         </span>
       ),
     },
-    //  {
-    //    key: 'minStockLevel',
-    //   header: 'Stock Mín.',
-    //   render: (value: number) => (
-    //     <Badge variant="secondary" size="sm">{value}</Badge>
-    //  ),
-    //  },
     {
       key: 'isActive',
       header: 'Estado',
@@ -393,7 +389,7 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
           <Input
             placeholder="Buscar por nombre o código..."
             value={filters.search}
-            onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+            onChange={(e) => setFilters((prev: ProductFilters) => ({ ...prev, search: e.target.value }))}
             leftIcon={
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -404,7 +400,7 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
           <Select
             options={categoryOptions}
             value={filters.categoryId?.toString() || ''}
-            onChange={(e) => setFilters(prev => ({ 
+            onChange={(e) => setFilters((prev: ProductFilters) => ({ 
               ...prev, 
               categoryId: e.target.value ? parseInt(e.target.value) : undefined 
             }))}
@@ -413,13 +409,13 @@ const formatDisplayDate = (dateString: string | null | undefined): string => {
           <Input
             placeholder="Filtrar por sabor..."
             value={filters.flavor}
-            onChange={(e) => setFilters(prev => ({ ...prev, flavor: e.target.value }))}
+            onChange={(e) => setFilters((prev: ProductFilters) => ({ ...prev, flavor: e.target.value }))}
           />
           
           <Select
             options={statusOptions}
             value={filters.isActive?.toString() || ''}
-            onChange={(e) => setFilters(prev => ({ 
+            onChange={(e) => setFilters((prev: ProductFilters) => ({ 
               ...prev, 
               isActive: e.target.value === '' ? undefined : e.target.value === 'true' 
             }))}

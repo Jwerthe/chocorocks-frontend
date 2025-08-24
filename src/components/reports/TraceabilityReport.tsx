@@ -122,7 +122,7 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       const report = await reportsService.generateTraceabilityReport(searchCode);
       setState(prev => ({ 
         ...prev, 
-        data: report, 
+        data: report as any, 
         loading: false,
         searchBatchCode: searchCode
       }));
@@ -413,7 +413,7 @@ export const TraceabilityReport: React.FC<ReportProps> = ({ onClose }) => {
               <ProgressBar 
                 value={calculatedSummary.remaining} 
                 max={calculatedSummary.totalProduced || 1} 
-                variant="info"
+                variant="primary"
               />
             </div>
           </div>

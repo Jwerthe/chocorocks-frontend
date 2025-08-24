@@ -321,8 +321,8 @@ export const SaleList: React.FC = () => {
       }
     }
 
-    return matchesSearch && matchesStore && matchesSaleType && matchesInvoiced && 
-           matchesStartDate && matchesEndDate;
+    return !!(matchesSearch && matchesStore && matchesSaleType && matchesInvoiced && 
+          matchesStartDate && matchesEndDate);
   });
 
   // Summary calculations with proper typing
@@ -441,13 +441,13 @@ export const SaleList: React.FC = () => {
           >
             Ver
           </Button>
-          <Button
+          {/* <Button
             size="sm"
             variant="secondary"
             onClick={() => handleEditSale(row)}
           >
             Editar
-          </Button>
+          </Button> */}
           {/* <Button
             size="sm"
             variant="danger"
