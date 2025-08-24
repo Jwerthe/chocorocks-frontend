@@ -1,611 +1,510 @@
 // src/components/products/ProductList.tsx
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card } from '@/components/ui/Card';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
-import { Modal } from '@/components/ui/Modal';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { BackendErrorHandler } from '../common/BackendErrorHandler';
+import { ProductForm } from './ProductForm';
+import { CategoryForm } from './CategoryForm';
+import { ProductResponse, CategoryResponse } from '@/types';
+import { productAPI, categoryAPI, ApiError } from '@/services/api';
 import { useDebounce } from '@/hooks/useDebounce';
-import { productAPI, categoryAPI } from '@/services/api';
-import { formatters } from '@/utils/formatters';
-import {
-  ProductResponse,
-  CategoryResponse,
-  ProductRequest
-} from '@/types';
 
-// Local interfaces to avoid conflicts with global types
-interface ProductListFilters {
+// ✅ Definir la interfaz ProductFilters localmente
+interface ProductFilters {
   search: string;
-  selectedCategoryId?: number;
-  selectedFlavor: string;
-  isActiveFilter?: boolean;
-}
-
-interface ProductListState {
-  products: ProductResponse[];
-  categories: CategoryResponse[];
-  loading: boolean;
-  error: string | null;
-  selectedProduct: ProductResponse | null;
-  showDeleteModal: boolean;
-  deleteLoading: boolean;
-}
-
-interface ProductFormData {
-  code: string;
-  nameProduct: string;
-  description: string;
-  categoryId: number;
+  categoryId?: number;
   flavor: string;
-  size: string;
-  productionCost: number;
-  wholesalePrice: number;
-  retailPrice: number;
-  minStockLevel: number;
-  imageUrl: string;
-  barcode: string;
-  isActive: boolean;
+  isActive?: boolean;
 }
 
-interface ProductListProps {
-  onProductSelect?: (product: ProductResponse) => void;
-  onProductCreate?: () => void;
-  onProductEdit?: (product: ProductResponse) => void;
-  showActions?: boolean;
-  selectable?: boolean;
+interface TableColumn<T> {
+  key: string;
+  header: string;
+  render?: (value: any, row: T) => React.ReactNode;
+  className?: string;
 }
 
-interface ProductRowActions {
-  onView: (product: ProductResponse) => void;
-  onEdit: (product: ProductResponse) => void;
-  onDelete: (product: ProductResponse) => void;
+interface SelectOption {
+  value: string | number;
+  label: string;
 }
 
-// Product Detail Modal Component
-interface ProductDetailModalProps {
-  product: ProductResponse | null;
-  isOpen: boolean;
-  onClose: () => void;
-}
+export const ProductList: React.FC = () => {
+  const [products, setProducts] = useState<ProductResponse[]>([]);
+  const [categories, setCategories] = useState<CategoryResponse[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
+  const [showProductForm, setShowProductForm] = useState<boolean>(false);
+  const [showCategoryForm, setShowCategoryForm] = useState<boolean>(false);
+  const [editingProduct, setEditingProduct] = useState<ProductResponse | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; product: ProductResponse | null }>({
+    show: false,
+    product: null
+  });
+  
+  const [filters, setFilters] = useState<ProductFilters>({
+    search: '',
+    categoryId: undefined,
+    flavor: '',
+    isActive: undefined,
+  });
 
-const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
-  product,
-  isOpen,
-  onClose
-}) => {
-  if (!product) return null;
+  const debouncedSearch = useDebounce(filters.search, 500);
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Detalles del Producto" size="lg">
-      <div className="space-y-4">
-        {/* Basic Info */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-gray-700">Código</label>
-            <p className="text-gray-900">{product.code}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Nombre</label>
-            <p className="text-gray-900">{product.nameProduct}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Categoría</label>
-            <p className="text-gray-900">{product.category.name}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Sabor</label>
-            <p className="text-gray-900">{product.flavor || 'N/A'}</p>
-          </div>
+  useEffect(() => {
+    fetchProducts();
+    fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    if (debouncedSearch !== filters.search) {
+      setFilters((prev: ProductFilters) => ({ ...prev, search: debouncedSearch }));
+    }
+  }, [debouncedSearch]);
+
+  const fetchProducts = async (): Promise<void> => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await productAPI.getAllProducts();
+      setProducts(data);
+    } catch (err) {
+      const errorMessage = err instanceof ApiError 
+        ? err.message 
+        : 'Error al cargar los productos';
+      setError(errorMessage);
+      console.error('Error fetching products:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper functions with proper typing
+  const isValidDate = (dateString: string | null | undefined): boolean => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    return !isNaN(date.getTime());
+  };
+
+  const safeFormatDate = (dateString: string | null | undefined): string => {
+    if (!isValidDate(dateString)) return 'Fecha inválida';
+    
+    try {
+      return new Date(dateString!).toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
+  };
+
+  const formatDisplayDate = (dateString: string | null | undefined): string => {
+    if (!isValidDate(dateString)) return 'Fecha inválida';
+    
+    try {
+      const date = new Date(dateString!);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0'); // meses base 0
+      const year = date.getFullYear();
+      return `${day}.${month}.${year}`;
+    } catch {
+      return 'Fecha inválida';
+    }
+  };
+
+  const fetchCategories = async (): Promise<void> => {
+    try {
+      const data = await categoryAPI.getAllCategories();
+      setCategories(data);
+    } catch (err) {
+      console.error('Error al cargar categorías:', err);
+    }
+  };
+
+  const handleDeleteClick = (product: ProductResponse): void => {
+    setDeleteConfirm({ show: true, product });
+  };
+
+  const handleDeleteConfirm = async (): Promise<void> => {
+    if (!deleteConfirm.product) return;
+
+    try {
+      await productAPI.deleteProduct(deleteConfirm.product.id);
+      await fetchProducts();
+      setDeleteConfirm({ show: false, product: null });
+    } catch (err) {
+      const errorMessage = err instanceof ApiError 
+        ? err.message 
+        : 'Error al eliminar el producto. Verifique que no tenga stock asociado.';
+      setError(errorMessage);
+      setDeleteConfirm({ show: false, product: null });
+      console.error('Error deleting product:', err);
+    }
+  };
+
+  const handleEditProduct = (product: ProductResponse): void => {
+    setEditingProduct(product);
+    setShowProductForm(true);
+  };
+
+  const handleProductFormClose = (): void => {
+    setShowProductForm(false);
+    setEditingProduct(null);
+  };
+
+  const handleProductFormSuccess = (): void => {
+    fetchProducts();
+  };
+
+  const handleCategoryFormSuccess = (): void => {
+    fetchCategories();
+  };
+
+  const handleSearch = useCallback(async (): Promise<void> => {
+    if (!filters.search && !filters.categoryId && !filters.flavor && filters.isActive === undefined) {
+      fetchProducts();
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      // ✅ Removido searchProducts ya que no existe - usar filtro del lado del cliente
+      await fetchProducts();
+    } catch (err) {
+      const errorMessage = err instanceof ApiError 
+        ? err.message 
+        : 'Error al buscar productos';
+      setError(errorMessage);
+      console.error('Error searching products:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  const clearFilters = (): void => {
+    setFilters({
+      search: '',
+      categoryId: undefined,
+      flavor: '',
+      isActive: undefined,
+    });
+    fetchProducts();
+  };
+
+  const handleRefresh = (): void => {
+    fetchProducts();
+    fetchCategories();
+  };
+
+  // Client-side filtering as fallback
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = !filters.search || 
+      product.nameProduct.toLowerCase().includes(filters.search.toLowerCase()) ||
+      product.code.toLowerCase().includes(filters.search.toLowerCase());
+    
+    const matchesCategory = !filters.categoryId || product.category.id === filters.categoryId;
+    
+    const matchesFlavor = !filters.flavor || 
+      (product.flavor && product.flavor.toLowerCase().includes(filters.flavor.toLowerCase()));
+    
+    const matchesStatus = filters.isActive === undefined || product.isActive === filters.isActive;
+
+    return matchesSearch && matchesCategory && matchesFlavor && matchesStatus;
+  });
+
+  const categoryOptions: SelectOption[] = [
+    { value: '', label: 'Todas las categorías' },
+    ...categories.map(cat => ({ value: cat.id, label: cat.name }))
+  ];
+
+  const statusOptions: SelectOption[] = [
+    { value: '', label: 'Todos los estados' },
+    { value: 'true', label: 'Activos' },
+    { value: 'false', label: 'Inactivos' },
+  ];
+
+  const columns: TableColumn<ProductResponse>[] = [
+    {
+      key: 'imageUrl',
+      header: 'Imagen',
+      render: (value: string) => (
+        <div className="w-12 h-12 bg-gray-200 border-2 border-black flex items-center justify-center">
+          {value ? (
+            <img src={value} alt="Producto" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-xs text-gray-500">Sin imagen</span>
+          )}
         </div>
-
-        {/* Description */}
-        {product.description && (
-          <div>
-            <label className="text-sm font-medium text-gray-700">Descripción</label>
-            <p className="text-gray-900">{product.description}</p>
-          </div>
-        )}
-
-        {/* Pricing */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="text-sm font-medium text-gray-700">Costo de Producción</label>
-            <p className="text-gray-900 font-medium">
-              {formatters.currency(product.productionCost)}
+      ),
+    },
+    {
+      key: 'code',
+      header: 'Código',
+      render: (value: string) => <span className="font-mono text-gray-700 text-sm">{value}</span>,
+    },
+    {
+      key: 'nameProduct',
+      header: 'Nombre',
+      render: (value: string, row: ProductResponse) => (
+        <div>
+          <span className="font-medium text-gray-800">{value}</span>
+          {row.description && (
+            <p className="text-xs text-gray-700 mt-1 truncate" title={row.description}>
+              {row.description.length > 50 ? `${row.description.substring(0, 50)}...` : row.description}
             </p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Precio al Por Mayor</label>
-            <p className="text-gray-900 font-medium">
-              {formatters.currency(product.wholesalePrice)}
-            </p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Precio al Por Menor</label>
-            <p className="text-gray-900 font-medium">
-              {formatters.currency(product.retailPrice)}
-            </p>
-          </div>
+          )}
         </div>
-
-        {/* Additional Info */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-gray-700">Tamaño</label>
-            <p className="text-gray-900">{product.size || 'N/A'}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Stock Mínimo</label>
-            <p className="text-gray-900">{formatters.number(product.minStockLevel)}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Código de Barras</label>
-            <p className="text-gray-900">{product.barcode || 'N/A'}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Estado</label>
-            <Badge variant={product.isActive ? "success" : "danger"}>
-              {product.isActive ? 'Activo' : 'Inactivo'}
-            </Badge>
-          </div>
-        </div>
-
-        {/* Timestamps */}
-        <div className="pt-4 border-t border-gray-200">
-          <div className="text-sm text-gray-500">
-            Creado: {formatters.dateTime(product.createdAt)}
-          </div>
-        </div>
-      </div>
-    </Modal>
-  );
-};
-
-// Delete Confirmation Modal
-interface DeleteConfirmModalProps {
-  product: ProductResponse | null;
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  loading: boolean;
-}
-
-const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
-  product,
-  isOpen,
-  onClose,
-  onConfirm,
-  loading
-}) => {
-  if (!product) return null;
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Confirmar Eliminación" size="sm">
-      <div className="space-y-4">
-        <div className="text-center">
-          <div className="text-4xl mb-4">⚠️</div>
-          <p className="text-gray-700">
-            ¿Estás seguro de que deseas eliminar el producto
-            <span className="font-bold"> "{product.nameProduct}"</span>?
-          </p>
-          <p className="text-sm text-red-600 mt-2">
-            Esta acción no se puede deshacer.
-          </p>
-        </div>
-        <div className="flex justify-end gap-3">
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancelar
+      ),
+    },
+    {
+      key: 'createdAt',
+      header: 'Fecha',
+      render: (value: unknown): React.ReactNode => (
+        <span className="text-sm text-gray-700">
+          {formatDisplayDate(String(value))}
+        </span>
+      ),
+    },
+    {
+      key: 'category.name',
+      header: 'Categoría',
+      render: (value: string) => <Badge variant="secondary" size="sm">{value}</Badge>,
+    },
+    {
+      key: 'flavor',
+      header: 'Sabor',
+      render: (value: string) => <span className='text-gray-700'> {value || '-' }</span>,
+    },
+    {
+      key: 'size',
+      header: 'Tamaño',
+      render: (value: string) => <span className='text-gray-700'>{value || '-'}</span>,
+    },
+    {
+      key: 'retailPrice',
+      header: 'P. Detalle',
+      render: (value: number) => (
+        <span className="font-medium text-green-600">
+          ${Number(value).toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      key: 'wholesalePrice',
+      header: 'P. Mayorista',
+      render: (value: number) => (
+        <span className="font-medium text-blue-600">
+          ${Number(value).toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      key: 'isActive',
+      header: 'Estado',
+      render: (value: boolean) => (
+        <Badge variant={value ? 'success' : 'danger'} size="sm">
+          {value ? 'Activo' : 'Inactivo'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Acciones',
+      render: (_: any, row: ProductResponse) => (
+        <div className="flex space-x-1">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleEditProduct(row)}
+          >
+            Editar
           </Button>
-          <Button variant="danger" onClick={onConfirm} isLoading={loading}>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => handleDeleteClick(row)}
+          >
             Eliminar
           </Button>
         </div>
-      </div>
-    </Modal>
-  );
-};
-
-// Main Component
-export const ProductList: React.FC<ProductListProps> = ({
-  onProductSelect,
-  onProductCreate,
-  onProductEdit,
-  showActions = true,
-  selectable = false
-}) => {
-  // State
-  const [state, setState] = useState<ProductListState>({
-    products: [],
-    categories: [],
-    loading: true,
-    error: null,
-    selectedProduct: null,
-    showDeleteModal: false,
-    deleteLoading: false
-  });
-
-  const [filters, setFilters] = useState<ProductListFilters>({
-    search: '',
-    selectedCategoryId: undefined,
-    selectedFlavor: '',
-    isActiveFilter: undefined
-  });
-
-  const [showDetailModal, setShowDetailModal] = useState<boolean>(false);
-
-  // Debounced search
-  const debouncedSearch = useDebounce(filters.search, 300);
-
-  // Load data
-  const loadData = useCallback(async (): Promise<void> => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
-
-    try {
-      const [productsData, categoriesData] = await Promise.all([
-        productAPI.getAllProducts(),
-        categoryAPI.getAllCategories()
-      ]);
-
-      setState(prev => ({
-        ...prev,
-        products: productsData,
-        categories: categoriesData,
-        loading: false
-      }));
-    } catch (error) {
-      setState(prev => ({
-        ...prev,
-        error: error instanceof Error ? error.message : 'Error al cargar productos',
-        loading: false
-      }));
-    }
-  }, []);
-
-  // Filter products
-  const filteredProducts = useMemo((): ProductResponse[] => {
-    return state.products.filter(product => {
-      const matchesSearch = !debouncedSearch || 
-        product.nameProduct.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        product.code.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        (product.description && product.description.toLowerCase().includes(debouncedSearch.toLowerCase()));
-
-      const matchesCategory = !filters.selectedCategoryId || 
-        product.category.id === filters.selectedCategoryId;
-
-      const matchesFlavor = !filters.selectedFlavor || 
-        (product.flavor && product.flavor.toLowerCase().includes(filters.selectedFlavor.toLowerCase()));
-
-      const matchesActive = filters.isActiveFilter === undefined || 
-        product.isActive === filters.isActiveFilter;
-
-      return matchesSearch && matchesCategory && matchesFlavor && matchesActive;
-    });
-  }, [state.products, debouncedSearch, filters]);
-
-  // Get unique flavors for filter
-  const availableFlavors = useMemo((): string[] => {
-    const flavors = state.products
-      .map(product => product.flavor)
-      .filter((flavor): flavor is string => Boolean(flavor))
-      .filter((flavor, index, array) => array.indexOf(flavor) === index);
-    
-    return flavors.sort();
-  }, [state.products]);
-
-  // Handlers
-  const handleFilterChange = useCallback(<K extends keyof ProductListFilters>(
-    key: K,
-    value: ProductListFilters[K]
-  ): void => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value
-    }));
-  }, []);
-
-  const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>): void => {
-    handleFilterChange('search', event.target.value);
-  }, [handleFilterChange]);
-
-  const handleCategoryChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>): void => {
-    const value = event.target.value;
-    handleFilterChange('selectedCategoryId', value ? Number(value) : undefined);
-  }, [handleFilterChange]);
-
-  const handleFlavorChange = useCallback((event: React.ChangeEvent<HTMLInputElement>): void => {
-    handleFilterChange('selectedFlavor', event.target.value);
-  }, [handleFilterChange]);
-
-  const handleActiveFilterChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>): void => {
-    const value = event.target.value;
-    handleFilterChange('isActiveFilter', value === '' ? undefined : value === 'true');
-  }, [handleFilterChange]);
-
-  // Action handlers
-  const handleProductView = useCallback((product: ProductResponse): void => {
-    setState(prev => ({ ...prev, selectedProduct: product }));
-    setShowDetailModal(true);
-  }, []);
-
-  const handleProductEdit = useCallback((product: ProductResponse): void => {
-    if (onProductEdit) {
-      onProductEdit(product);
-    }
-  }, [onProductEdit]);
-
-  const handleProductDelete = useCallback((product: ProductResponse): void => {
-    setState(prev => ({ 
-      ...prev, 
-      selectedProduct: product,
-      showDeleteModal: true 
-    }));
-  }, []);
-
-  const confirmDelete = useCallback(async (): Promise<void> => {
-    if (!state.selectedProduct) return;
-
-    setState(prev => ({ ...prev, deleteLoading: true }));
-
-    try {
-      await productAPI.deleteProduct(state.selectedProduct.id);
-      
-      setState(prev => ({
-        ...prev,
-        products: prev.products.filter(p => p.id !== state.selectedProduct!.id),
-        selectedProduct: null,
-        showDeleteModal: false,
-        deleteLoading: false
-      }));
-    } catch (error) {
-      setState(prev => ({
-        ...prev,
-        error: error instanceof Error ? error.message : 'Error al eliminar producto',
-        deleteLoading: false
-      }));
-    }
-  }, [state.selectedProduct]);
-
-  const handleProductSelect = useCallback((product: ProductResponse): void => {
-    if (onProductSelect) {
-      onProductSelect(product);
-    }
-  }, [onProductSelect]);
-
-  // Clear error
-  const clearError = useCallback((): void => {
-    setState(prev => ({ ...prev, error: null }));
-  }, []);
-
-  // Load data on mount
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // Table columns
-  const columns = useMemo(() => {
-    const baseColumns = [
-      {
-        key: 'code',
-        header: 'Código',
-        render: (value: string) => (
-          <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
-            {value}
-          </span>
-        )
-      },
-      {
-        key: 'nameProduct',
-        header: 'Nombre',
-        render: (value: string, row: ProductResponse) => (
-          <div>
-            <div className="font-medium text-gray-900">{value}</div>
-            {row.flavor && (
-              <div className="text-sm text-gray-500">{row.flavor}</div>
-            )}
-          </div>
-        )
-      },
-      {
-        key: 'category',
-        header: 'Categoría',
-        render: (value: CategoryResponse) => (
-          <Badge variant="secondary">{value.name}</Badge>
-        )
-      },
-      {
-        key: 'retailPrice',
-        header: 'Precio Retail',
-        render: (value: number) => (
-          <span className="font-medium text-green-600">
-            {formatters.currency(value)}
-          </span>
-        )
-      },
-      {
-        key: 'minStockLevel',
-        header: 'Stock Mínimo',
-        render: (value: number) => formatters.number(value)
-      },
-      {
-        key: 'isActive',
-        header: 'Estado',
-        render: (value: boolean) => (
-          <Badge variant={value ? "success" : "danger"}>
-            {value ? 'Activo' : 'Inactivo'}
-          </Badge>
-        )
-      }
-    ];
-
-    if (showActions || selectable) {
-      baseColumns.push({
-        key: 'actions',
-        header: 'Acciones',
-        render: (_: unknown, row: ProductResponse) => (
-          <div className="flex gap-2">
-            {selectable && (
-              <Button 
-                size="sm" 
-                variant="primary" 
-                onClick={() => handleProductSelect(row)}
-              >
-                Seleccionar
-              </Button>
-            )}
-            {showActions && (
-              <>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => handleProductView(row)}
-                >
-                  Ver
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => handleProductEdit(row)}
-                >
-                  Editar
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="danger" 
-                  onClick={() => handleProductDelete(row)}
-                >
-                  Eliminar
-                </Button>
-              </>
-            )}
-          </div>
-        )
-      });
-    }
-
-    return baseColumns;
-  }, [showActions, selectable, handleProductSelect, handleProductView, handleProductEdit, handleProductDelete]);
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start space-y-4 sm:space-y-0">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Productos</h2>
-          <p className="text-gray-600">
-            Gestiona el catálogo de productos de chocolate
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gestión de Productos</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">
+            Administra el catálogo de productos de Chocorocks
           </p>
         </div>
-        {onProductCreate && (
-          <Button onClick={onProductCreate}>
-            Crear Producto
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+          <Button
+            variant="outline"
+            onClick={() => setShowCategoryForm(true)}
+            className="w-full sm:w-auto"
+          >
+            Gestionar Categorías
           </Button>
-        )}
+          <Button 
+            onClick={() => setShowProductForm(true)}
+            className="w-full sm:w-auto"
+          >
+            + Nuevo Producto
+          </Button>
+          <Button 
+            variant="secondary"
+            onClick={handleRefresh}
+            className="w-full sm:w-auto"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Actualizar
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <Card title="Filtros">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {error && (
+        <BackendErrorHandler 
+          error={error}
+          onRetry={handleRefresh}
+          title="Error al cargar Productos"
+          description="No se pudieron cargar los productos. Verifica la conexión con el backend."
+        />
+      )}
+
+      <Card title="Filtros de Búsqueda">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Input
-            label="Buscar"
-            placeholder="Nombre, código o descripción..."
+            placeholder="Buscar por nombre o código..."
             value={filters.search}
-            onChange={handleSearchChange}
+            onChange={(e) => setFilters((prev: ProductFilters) => ({ ...prev, search: e.target.value }))}
+            leftIcon={
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            }
           />
           
           <Select
-            label="Categoría"
-            value={filters.selectedCategoryId?.toString() || ''}
-            onChange={handleCategoryChange}
-            options={[
-              { value: '', label: 'Todas las categorías' },
-              ...state.categories.map(category => ({
-                value: category.id.toString(),
-                label: category.name
-              }))
-            ]}
+            options={categoryOptions}
+            value={filters.categoryId?.toString() || ''}
+            onChange={(e) => setFilters((prev: ProductFilters) => ({ 
+              ...prev, 
+              categoryId: e.target.value ? parseInt(e.target.value) : undefined 
+            }))}
           />
-
+          
           <Input
-            label="Sabor"
             placeholder="Filtrar por sabor..."
-            value={filters.selectedFlavor}
-            onChange={handleFlavorChange}
-            list="flavors-list"
+            value={filters.flavor}
+            onChange={(e) => setFilters((prev: ProductFilters) => ({ ...prev, flavor: e.target.value }))}
           />
-
+          
           <Select
-            label="Estado"
-            value={filters.isActiveFilter === undefined ? '' : filters.isActiveFilter.toString()}
-            onChange={handleActiveFilterChange}
-            options={[
-              { value: '', label: 'Todos' },
-              { value: 'true', label: 'Activos' },
-              { value: 'false', label: 'Inactivos' }
-            ]}
+            options={statusOptions}
+            value={filters.isActive?.toString() || ''}
+            onChange={(e) => setFilters((prev: ProductFilters) => ({ 
+              ...prev, 
+              isActive: e.target.value === '' ? undefined : e.target.value === 'true' 
+            }))}
           />
         </div>
-
-        {/* Flavors datalist */}
-        <datalist id="flavors-list">
-          {availableFlavors.map(flavor => (
-            <option key={flavor} value={flavor} />
-          ))}
-        </datalist>
+        
+        <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-4">
+          <Button variant="outline" onClick={clearFilters} className="w-full sm:w-auto">
+            Limpiar Filtros
+          </Button>
+          <Button onClick={handleSearch} className="w-full sm:w-auto">
+            Buscar
+          </Button>
+        </div>
       </Card>
 
-      {/* Error */}
-      {state.error && (
-        <Alert variant="error" onClose={clearError}>
-          {state.error}
-        </Alert>
-      )}
-
-      {/* Results Summary */}
-      <div className="flex justify-between items-center text-sm text-gray-600">
-        <span>
-          Mostrando {filteredProducts.length} de {state.products.length} productos
-        </span>
-        <Button variant="outline" onClick={loadData} disabled={state.loading}>
-          Actualizar
-        </Button>
-      </div>
-
-      {/* Products Table */}
       <Card>
-        <Table
-          data={filteredProducts}
-          columns={columns}
-          loading={state.loading}
-          emptyMessage="No se encontraron productos"
-        />
+        <div className="mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0">
+          <h2 className="text-lg text-gray-700 font-bold">
+            Productos ({filteredProducts.length})
+          </h2>
+          {categories.length === 0 && (
+            <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 px-3 py-2 rounded">
+              ⚠️ No hay categorías. <button 
+                onClick={() => setShowCategoryForm(true)}
+                className="underline font-medium hover:text-amber-800"
+              >
+                Crear una categoría
+              </button> primero.
+            </div>
+          )}
+        </div>
+        
+        {loading ? (
+          <div className="flex justify-center items-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#7ca1eb] border-t-transparent" />
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <EmptyState
+            icon={
+              <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            }
+            title="No hay productos"
+            description={
+              products.length === 0 
+                ? "Aún no has creado ningún producto. ¡Comienza agregando tu primer producto al catálogo!"
+                : "No se encontraron productos con los filtros aplicados. Prueba ajustando los criterios de búsqueda."
+            }
+            action={{
+              text: products.length === 0 ? "Crear primer producto" : "Limpiar filtros",
+              onClick: products.length === 0 ? () => setShowProductForm(true) : clearFilters
+            }}
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <Table
+              data={filteredProducts}
+              columns={columns}
+              loading={false}
+              emptyMessage="No se encontraron productos"
+            />
+          </div>
+        )}
       </Card>
 
-      {/* Modals */}
-      <ProductDetailModal
-        product={state.selectedProduct}
-        isOpen={showDetailModal}
-        onClose={() => {
-          setShowDetailModal(false);
-          setState(prev => ({ ...prev, selectedProduct: null }));
-        }}
+      <ProductForm
+        isOpen={showProductForm}
+        onClose={handleProductFormClose}
+        onSuccess={handleProductFormSuccess}
+        editingProduct={editingProduct}
       />
 
-      <DeleteConfirmModal
-        product={state.selectedProduct}
-        isOpen={state.showDeleteModal}
-        onClose={() => setState(prev => ({ 
-          ...prev, 
-          showDeleteModal: false, 
-          selectedProduct: null 
-        }))}
-        onConfirm={confirmDelete}
-        loading={state.deleteLoading}
+      <CategoryForm
+        isOpen={showCategoryForm}
+        onClose={() => setShowCategoryForm(false)}
+        onSuccess={handleCategoryFormSuccess}
+      />
+
+      <ConfirmDialog
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, product: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Eliminar Producto"
+        message={`¿Estás seguro de que deseas eliminar el producto "${deleteConfirm.product?.nameProduct}"? Esta acción no se puede deshacer y solo será posible si no tiene stock asociado.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
       />
     </div>
   );

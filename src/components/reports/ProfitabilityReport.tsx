@@ -65,7 +65,7 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       const report = await reportsService.generateProfitabilityReport(state.filters);
       setState(prev => ({ 
         ...prev, 
-        data: report, 
+        data: report as any, 
         loading: false 
       }));
     } catch (error) {

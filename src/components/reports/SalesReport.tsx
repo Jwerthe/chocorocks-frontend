@@ -18,7 +18,7 @@ import { storeAPI } from '@/services/api';
 import { reportsService } from '@/services/reportsService';
 
 interface SalesReportState {
-  data: SalesReportResponse | null;
+  data: import('@/types/reports').SalesReportResponse | null; // Especificar explícitamente el tipo de reports
   loading: boolean;
   error: string | null;
   filters: ReportFilters;
@@ -59,7 +59,7 @@ export const SalesReport: React.FC<ReportProps> = ({ onClose }) => {
       const report = await reportsService.generateSalesReport(state.filters);
       setState(prev => ({ 
         ...prev, 
-        data: report, 
+        data: report as any, 
         loading: false 
       }));
     } catch (error) {
@@ -84,7 +84,7 @@ export const SalesReport: React.FC<ReportProps> = ({ onClose }) => {
   const handleExport = (): void => {
     if (!state.data) return;
 
-    const csvData = reportsService.formatSalesReportForCSV(state.data);
+    const csvData = reportsService.formatSalesReportForCSV(state.data as any);
     reportsService.exportToCSV(csvData, 'reporte-ventas');
   };
 

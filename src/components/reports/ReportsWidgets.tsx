@@ -155,11 +155,11 @@ export const InventoryAlertsWidget: React.FC<InventoryAlertsWidgetProps> = ({
         const inventoryData = await reportsService.generateInventoryReport();
         
         // ✅ CORREGIDO: Validar estructura de datos del backend
-        const stockAlerts = inventoryData.stockAlerts || {
-          lowStock: 0,
-          outOfStock: 0,
-          critical: 0,
-          expiringSoon: 0
+        const stockAlerts = {
+          lowStock: inventoryData.lowStockProducts || 0,
+          outOfStock: 0, // Esta propiedad no existe en el tipo actual
+          critical: 0,   // Esta propiedad no existe en el tipo actual
+          expiringSoon: inventoryData.expiredProducts || 0
         };
         
         setAlertsData({
