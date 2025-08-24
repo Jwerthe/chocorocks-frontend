@@ -47,10 +47,8 @@ class ApiService {
   private baseUrl: string;
 
   constructor(endpoint: string) {
-    // ✅ CORREGIDO: Usar el endpoint completo del backend
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://23.20.243.209:8080';
-    this.baseUrl = `${apiBaseUrl}/chocorocks/api${endpoint}`;
-    
+    // ✅ Usar el proxy same-origin. Nada de IPs aquí.
+    this.baseUrl = `/api${endpoint}`;
     console.log(`🌐 API Service initialized for: ${this.baseUrl}`);
   }
 

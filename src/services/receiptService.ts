@@ -11,8 +11,8 @@ class ApiService {
   protected baseUrl: string;
 
   constructor(endpoint: string) {
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://23.20.243.209:8080';
-    this.baseUrl = `${apiBaseUrl}/chocorocks/api${endpoint}`;
+    // ✅ same-origin proxy
+    this.baseUrl = `/api${endpoint}`;
   }
 
   protected getAuthHeaders(): Record<string, string> {

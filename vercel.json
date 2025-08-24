@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "http://23.20.243.209:8080/chocorocks/api/$1"
+    }
+  ]
+}

@@ -3,7 +3,8 @@ import { supabase } from '@/lib/supabase';
 import { LoginCredentials, User, AuthUserResponse } from '@/types/auth';
 import Cookies from 'js-cookie';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+// ✅ Usar siempre el proxy same-origin
+const API_BASE = '/api';
 
 export class AuthError extends Error {
   public code?: string;
@@ -68,7 +69,7 @@ class AuthService {
 
   async validateTokenWithBackend(token: string): Promise<User> {
     try {
-      const response = await fetch(`${API_URL}/chocorocks/api/auth/me`, {
+      const response = await fetch(`${API_BASE}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
