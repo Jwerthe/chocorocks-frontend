@@ -445,14 +445,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ onClose 
             <Button onClick={generateDashboard} isLoading={state.loading}>
               Actualizar Dashboard
             </Button>
-            {state.data && (
+          </div>
+          {onClose && (
+            <div className="flex items-end gap-2">
+                          {state.data && (
               <Button variant="outline" onClick={handleExport}>
                 Exportar
               </Button>
             )}
-          </div>
-          {onClose && (
-            <div className="flex items-end">
               <Button variant="outline" onClick={onClose}>
                 Cerrar
               </Button>

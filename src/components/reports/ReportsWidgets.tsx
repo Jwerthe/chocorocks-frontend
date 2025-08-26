@@ -156,15 +156,15 @@ export const InventoryAlertsWidget: React.FC<InventoryAlertsWidgetProps> = ({
         
         // ✅ CORREGIDO: Validar estructura de datos del backend
         const stockAlerts = {
-          lowStock: inventoryData.lowStockProducts || 0,
-          outOfStock: 0, // Esta propiedad no existe en el tipo actual
-          critical: 0,   // Esta propiedad no existe en el tipo actual
-          expiringSoon: inventoryData.expiredProducts || 0
+          lowStock: inventoryData.stockAlerts?.lowStock || 0,
+          outOfStock: inventoryData.stockAlerts?.outOfStock || 0,
+          critical: inventoryData.stockAlerts?.critical || 0,
+          expiringSoon: inventoryData.stockAlerts?.expiringSoon || 0
         };
-        
+
         setAlertsData({
-          lowStock: stockAlerts.lowStock || 0,
-          expired: stockAlerts.expiringSoon || 0,
+          lowStock: inventoryData.lowStockProducts?.length || 0,
+          expired: inventoryData.expiringBatches?.length || 0,
           critical: stockAlerts.outOfStock || 0
         });
       } catch (error) {

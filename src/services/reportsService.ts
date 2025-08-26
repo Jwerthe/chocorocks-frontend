@@ -287,7 +287,7 @@ class ReportsService {
       ['Métricas Generales'],
       ['Total de Productos', (report.totalProducts || 0).toString()],
       ['Productos con Stock Bajo', (report.lowStockProducts || 0).toString()],
-      ['Productos Vencidos', (report.expiredProducts || 0).toString()],
+      ['Productos Vencidos', (report.expiringBatches || 0).toString()],
       [''],
       ['Inventario por Tienda'],
       ['Tienda', 'Cantidad de Productos', 'Stock Total'],

@@ -102,10 +102,10 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
 
   // ✅ CORREGIDO: Validación de datos y alertas calculadas
   const alertsData = {
-    lowStock: state.data?.lowStockProducts || 0,
-    outOfStock: 0, // Esta propiedad no existe en el tipo actual
-    critical: 0,   // Esta propiedad no existe en el tipo actual
-    expiringSoon: state.data?.expiredProducts || 0
+    lowStock: state.data?.stockAlerts?.lowStock || 0,
+    outOfStock: state.data?.stockAlerts?.outOfStock || 0,
+    critical: state.data?.stockAlerts?.critical || 0,
+    expiringSoon: state.data?.stockAlerts?.expiringSoon || 0
   };
 
   const summaryCards = state.data ? [
@@ -129,7 +129,7 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
     },
     {
       title: 'Valor Total',
-      value: formatters.currency(state.data.totalStockValue || 0),
+      value: formatters.currency(state.data.totalValue || 0),
       icon: '💎',
       variant: 'success' as const
     }
@@ -327,7 +327,7 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
       label: 'Por Categoría',
       content: (
         <Table
-          data={[]}
+          data={state.data?.inventoryByCategory || []}
           columns={categoryColumns}
           emptyMessage="No hay datos de inventario por categoría"
         />
@@ -338,7 +338,7 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
       label: 'Stock Bajo',
       content: (
         <Table
-          data={Array.isArray(state.data?.productRotation) ? state.data.productRotation.filter(p => p.status === 'low' || p.status === 'critical') : []}
+          data={state.data?.lowStockProducts || []}
           columns={lowStockColumns}
           emptyMessage="No hay productos con stock bajo"
         />
@@ -349,7 +349,7 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
       label: 'Por Vencer',
       content: (
         <Table
-          data={state.data?.expiredBatches || []}
+          data={state.data?.expiringBatches || []}
           columns={expiringBatchesColumns}
           emptyMessage="No hay lotes próximos a vencer"
         />
@@ -411,15 +411,15 @@ export const InventoryReport: React.FC<ReportProps> = ({ onClose }) => {
       )}
 
       {/* Alertas importantes */}
-      {state.data && ((state.data.lowStockProducts || 0) > 0 || (state.data.expiredProducts || 0) > 0) && (
+      {state.data && ((state.data.lowStockProducts?.length || 0) > 0 || (state.data.expiringBatches?.length || 0) > 0) && (
         <Alert variant="warning">
           <div className="text-gray-700">
             <strong>Atención Requerida:</strong>
-            {(state.data.lowStockProducts || 0) > 0 && (
-              <span> {state.data.lowStockProducts} productos con stock bajo.</span>
+            {(state.data.stockAlerts?.lowStock || 0) > 0 && (
+              <span> {state.data.stockAlerts.lowStock} productos con stock bajo.</span>
             )}
-            {(state.data.expiredProducts || 0) > 0 && (
-              <span> {state.data.expiredProducts} productos vencidos.</span>
+            {(state.data.stockAlerts?.expiringSoon || 0) > 0 && (
+              <span> {state.data.stockAlerts.expiringSoon} productos por vencer.</span>
             )}
           </div>
         </Alert>

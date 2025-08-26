@@ -185,7 +185,7 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       }
     },
     { 
-      key: 'margin', 
+      key: 'profitMargin', 
       header: 'Margen',
       render: (value: number) => (
         <Badge variant={getMarginVariant(value)}>
@@ -194,7 +194,7 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       )
     },
     { 
-      key: 'unitsSold', 
+      key: 'quantitySold', 
       header: 'Unidades',
       render: (value: number) => <span className="text-gray-700">{formatters.number(value || 0)}</span>
     }
@@ -229,7 +229,7 @@ export const ProfitabilityReport: React.FC<ReportProps> = ({ onClose }) => {
       }
     },
     { 
-      key: 'margin', 
+      key: 'profitMargin', 
       header: 'Margen',
       render: (value: number) => (
         <Badge variant={getMarginVariant(value)}>

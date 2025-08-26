@@ -142,7 +142,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         <div className="flex items-center justify-between p-2 border-b-2 border-black bg-[#7ca1eb]">
           <div className="flex items-center space-x-3">
             <Image
-              src="/images/logos/chocologo.png"
+              src="/logo/chocologo.png"
               alt="Logo de Chocorocks"
               width={300}
               height={120}

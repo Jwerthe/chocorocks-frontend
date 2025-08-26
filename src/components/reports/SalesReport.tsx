@@ -165,9 +165,9 @@ export const SalesReport: React.FC<ReportProps> = ({ onClose }) => {
       render: (value: string) => <span className="text-gray-700">{formatters.date(value)}</span>
     },
     { 
-      key: 'sales', 
+      key: 'salesCount', 
       header: 'Ventas',
-      render: (value: number) => <span className="text-gray-700">{formatters.number(value || 0)}</span>
+      render: (value: number) => <span className="text-gray-700">{formatters.number(value ||0)}</span>
     },
     { 
       key: 'revenue', 

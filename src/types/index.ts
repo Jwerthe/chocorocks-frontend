@@ -611,31 +611,64 @@ export interface SalesReportResponse {
   }>;
 }
 
+// ✅ Tipo correcto según el backend
 export interface InventoryReportResponse {
   totalProducts: number;
-  lowStockProducts: number;
-  expiredProducts: number;
-  totalStockValue: number;
-  inventoryByStore: Array<{
-    storeName: string;
-    productsCount: number;
-    totalStock: number;
-    stockValue: number;
-  }>;
-  productRotation: Array<{
-    productName: string;
-    currentStock: number;
-    minStockLevel: number;
-    status: 'normal' | 'low' | 'critical';
-    daysOfStock: number;
-  }>;
-  expiredBatches: Array<{
-    batchCode: string;
-    productName: string;
-    expirationDate: string;
-    quantity: number;
-  }>;
+  totalValue: number;
+  stockAlerts: InventoryAlertsResponse;
+  inventoryByStore: InventoryByStoreResponse[];
+  inventoryByCategory: InventoryByCategoryResponse[];
+  lowStockProducts: LowStockProductResponse[];
+  expiringBatches: ExpiringBatchResponse[];
 }
+
+export interface InventoryAlertsResponse {
+  lowStock: number;
+  outOfStock: number;
+  critical: number;
+  expiringSoon: number;
+}
+
+export interface InventoryByStoreResponse {
+  storeId: number;
+  storeName: string;
+  productCount: number;
+  totalStock: number;
+  totalValue: number;
+}
+
+export interface InventoryByCategoryResponse {
+  categoryId: number;
+  categoryName: string;
+  productCount: number;
+  totalStock: number;
+  totalValue: number;
+}
+
+export interface LowStockProductResponse {
+  productId: number;
+  productName: string;
+  productCode: string;
+  storeId: number;
+  storeName: string;
+  currentStock: number;
+  minStockLevel: number;
+  alertLevel: string;
+}
+
+export interface ExpiringBatchResponse {
+  batchId: number;
+  batchCode: string;
+  productId: number;
+  productName: string;
+  storeId?: number;
+  storeName?: string;
+  expirationDate: string;
+  daysUntilExpiration: number;
+  currentQuantity: number;
+}
+
+
 
 export interface ProfitabilityReportResponse {
   totalRevenue: number;

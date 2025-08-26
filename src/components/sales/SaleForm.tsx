@@ -124,6 +124,16 @@ export const SaleForm: React.FC<SaleFormProps> = ({
   });
   const [availableBatches, setAvailableBatches] = useState<ProductBatchResponse[]>([]); // ✅ LOTES
   
+  // ✅ FUNCIÓN para generar número de venta automáticamente
+  const generateSaleNumber = useCallback((): string => {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+    
+    return `VT-${year}${month}${day}-${random}`;
+  }, []);
   // Client form
   const [showClientForm, setShowClientForm] = useState<boolean>(false);
 
@@ -196,7 +206,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
 
   const resetForm = useCallback((): void => {
     setFormData({
-      saleNumber: '',
+      saleNumber: generateSaleNumber(),
       userId: numericUserId > 0 ? numericUserId.toString() : '', // ✅ Usuario autenticado por defecto
       clientId: undefined,
       storeId: 0,
@@ -776,14 +786,25 @@ export const SaleForm: React.FC<SaleFormProps> = ({
 
         {/* Información básica de la venta */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Input
-            label="Número de Venta*"
-            value={formData.saleNumber}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-              handleInputChange('saleNumber', e.target.value)}
-            error={errors.saleNumber}
-            placeholder="Ej: SALE-001"
-          />
+        <Input
+          label="Número de Venta*"
+          value={formData.saleNumber}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+            handleInputChange('saleNumber', e.target.value)}
+          error={errors.saleNumber}
+          placeholder="Ej: VT-20250826-XXXX"
+          disabled={!!editingSale}
+          rightIcon={!editingSale ? (
+            <button
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, saleNumber: generateSaleNumber() }))}
+              className="text-[#7ca1eb] hover:text-[#6b90da]"
+              title="Generar nuevo número"
+            >
+              🔄
+            </button>
+          ) : undefined}
+        />
 
           <Select
             label="Vendedor*"
