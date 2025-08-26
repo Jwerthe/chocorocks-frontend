@@ -160,6 +160,7 @@ export const LoginForm: React.FC = () => {
               alt="Logo de Chocorocks"
               width={300}
               height={120}
+              unoptimized
             />
           </div>
           <p className="text-gray-600">Sistema de Inventario</p>
