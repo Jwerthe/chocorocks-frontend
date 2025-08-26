@@ -5,18 +5,8 @@ const nextConfig = {
     appDir: true,
   },
   images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**',   // ⚠️ acepta cualquier host con HTTPS
-        pathname: '/**',  // cualquier path
-      },
-      {
-        protocol: 'http',
-        hostname: '**',   // si quieres permitir también HTTP
-        pathname: '/**',
-      },
-    ],
+    unoptimized: true,
+    domains: ['localhost', 'example.com'],
   },
   async rewrites() {
     return [

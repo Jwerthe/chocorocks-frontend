@@ -4,6 +4,15 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // 🔓 Permitir archivos estáticos (imágenes, CSS, JS, etc.)
+  if (
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/logo/') ||
+    pathname.startsWith('/images/') ||
+    pathname.includes('.') // Cualquier archivo con extensión
+  ) {
+    return NextResponse.next();
+  }
   
   // 🔄 Rutas API que van al backend - dejar pasar (se valida en backend)
   if (pathname.startsWith('/api/')) {

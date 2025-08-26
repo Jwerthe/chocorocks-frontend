@@ -156,11 +156,10 @@ export const LoginForm: React.FC = () => {
         <div className="text-center mb-4">
           <div className="mb-2 flex justify-center">
             <Image
-              src="/images/logos/chocologo.png"
+              src="/logo/chocologo.png"
               alt="Logo de Chocorocks"
               width={300}
               height={120}
-              unoptimized
             />
           </div>
           <p className="text-gray-600">Sistema de Inventario</p>
