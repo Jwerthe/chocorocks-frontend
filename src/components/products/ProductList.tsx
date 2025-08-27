@@ -248,17 +248,17 @@ export const ProductList: React.FC = () => {
     {
       key: 'code',
       header: 'Código',
-      render: (value: string) => <span className="font-mono text-gray-700 text-sm">{value}</span>,
+      render: (value: string) => <span className="font-mono text-gray-700 text-xs">{value}</span>,
     },
     {
       key: 'nameProduct',
       header: 'Nombre',
       render: (value: string, row: ProductResponse) => (
         <div>
-          <span className="font-medium text-gray-800">{value}</span>
+          <span className="font-medium text-gray-800 truncate">{value.length > 20 ? `${value.substring(0, 20)}...` : value}</span>
           {row.description && (
             <p className="text-xs text-gray-700 mt-1 truncate" title={row.description}>
-              {row.description.length > 50 ? `${row.description.substring(0, 50)}...` : row.description}
+              {row.description.length > 30 ? `${row.description.substring(0, 30)}...` : row.description}
             </p>
           )}
         </div>
@@ -281,12 +281,12 @@ export const ProductList: React.FC = () => {
     {
       key: 'flavor',
       header: 'Sabor',
-      render: (value: string) => <span className='text-gray-700'> {value || '-' }</span>,
+      render: (value: string) => <span className='text-gray-700 text-sm'> {value || '-' }</span>,
     },
     {
       key: 'size',
       header: 'Tamaño',
-      render: (value: string) => <span className='text-gray-700'>{value || '-'}</span>,
+      render: (value: string) => <span className='text-gray-700 text-sm'> {value || '-'}</span>,
     },
     {
       key: 'retailPrice',

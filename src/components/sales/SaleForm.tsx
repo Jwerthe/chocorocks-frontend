@@ -209,7 +209,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       subtotal: 0,
       discountPercentage: 0,
       discountAmount: 0,
-      taxPercentage: 12,
+      taxPercentage: 15,
       taxAmount: 0,
       totalAmount: 0,
       paymentMethod: '',
@@ -720,7 +720,9 @@ export const SaleForm: React.FC<SaleFormProps> = ({
                 className="text-[#7ca1eb] hover:text-[#6b90da]"
                 title="Generar nuevo número"
               >
-                🔄
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
               </button>
             ) : undefined}
           />
@@ -876,7 +878,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
                 type="number"
                 min="0"
                 max="100"
-                step="0.01"
+                step="1"
                 value={formData.discountPercentage}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
                   handleInputChange('discountPercentage', parseFloat(e.target.value) || 0)}
@@ -888,7 +890,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
                 type="number"
                 min="0"
                 max="100"
-                step="0.01"
+                step="1"
                 value={formData.taxPercentage}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
                   handleInputChange('taxPercentage', parseFloat(e.target.value) || 0)}

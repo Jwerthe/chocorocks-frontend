@@ -198,21 +198,21 @@ export const SaleDetailModal: React.FC<SaleDetailModalProps> = ({
         </span>
       ),
     },
-    {
-      key: 'batch',
-      header: 'Lote',
-      render: (value: any) => (
-        <span className="text-sm text-gray-700">
-          {value ? (
-            <Badge variant="secondary" size="sm">
-              {value.batchCode}
-            </Badge>
-          ) : (
-            <span className="text-gray-500">Sin lote</span>
-          )}
-        </span>
-      ),
-    },
+    // {
+    //   key: 'batch',
+    //   header: 'Lote',
+    //   render: (value: any) => (
+    //     <span className="text-sm text-gray-700">
+    //       {value ? (
+    //         <Badge variant="secondary" size="sm">
+    //           {value.batchCode}
+    //         </Badge>
+    //       ) : (
+    //         <span className="text-gray-500">Sin lote</span>
+    //       )}
+    //     </span>
+    //   ),
+    // },
   ];
 
   // Calculate totals for verification

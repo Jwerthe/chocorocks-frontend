@@ -1,4 +1,4 @@
-// src/components/inventory/ProductStoreList.tsx (SIMPLIFICADO - SIN VALIDACIÓN DE LOTES)
+// src/components/inventory/ProductStoreList.tsx (UNIFICADO - UN SOLO BOTÓN EDITAR)
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -10,12 +10,10 @@ import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Modal } from '@/components/ui/Modal';
 import { ProductStoreForm } from './ProductStoreForm';
 import { BackendErrorHandler } from '../common/BackendErrorHandler';
 import { 
   ProductStoreResponse, 
-  ProductStoreRequest,
   StoreResponse, 
   ProductResponse,
   CategoryResponse
@@ -50,17 +48,18 @@ interface ProductStoreFilters {
   stockStatus: 'all' | 'normal' | 'low' | 'critical' | 'out';
 }
 
-interface EditStockFormData {
-  productStoreId: number;
-  productId: number;
-  storeId: number;
-  currentStock: number;
-  productName: string;
-  storeName: string;
+interface StockStatus {
+  status: 'normal' | 'low' | 'critical' | 'out';
+  label: string;
+  variant: 'success' | 'warning' | 'danger';
 }
 
-interface FormErrors {
-  [key: string]: string;
+interface SummaryStats {
+  totalRelations: number;
+  totalStock: number;
+  lowStockItems: number;
+  criticalStockItems: number;
+  outOfStockItems: number;
 }
 
 export const ProductStoreList: React.FC = () => {
@@ -70,14 +69,8 @@ export const ProductStoreList: React.FC = () => {
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
-  
-  // Estados para edición
-  const [showEditModal, setShowEditModal] = useState<boolean>(false);
-  const [editingProductStore, setEditingProductStore] = useState<EditStockFormData | null>(null);
-  const [editLoading, setEditLoading] = useState<boolean>(false);
-  const [editErrors, setEditErrors] = useState<FormErrors>({});
 
-  // Estados para formulario
+  // Estados para formulario unificado
   const [showProductStoreForm, setShowProductStoreForm] = useState<boolean>(false);
   const [editingProductStoreForm, setEditingProductStoreForm] = useState<ProductStoreResponse | null>(null);
     
@@ -88,7 +81,7 @@ export const ProductStoreList: React.FC = () => {
     stockStatus: 'all',
   });
 
-  const debouncedSearch = useDebounce(filters.search, 500);
+  const debouncedSearch: string = useDebounce(filters.search, 500);
   const { success, error: notifyError } = useNotification();
 
   const fetchAllData = useCallback(async (): Promise<void> => {
@@ -112,8 +105,8 @@ export const ProductStoreList: React.FC = () => {
       console.log(`✅ Datos cargados: ${productStoreData.length} relaciones producto-tienda`);
       
       setProductStores(productStoreData);
-      setStores(storesData.filter(s => s.isActive));
-      setProducts(productsData.filter(p => p.isActive));
+      setStores(storesData.filter((s: StoreResponse) => s.isActive));
+      setProducts(productsData.filter((p: ProductResponse) => p.isActive));
       setCategories(categoriesData);
       
     } catch (err) {
@@ -136,7 +129,7 @@ export const ProductStoreList: React.FC = () => {
   }, [fetchAllData]);
 
   const handleFilterChange = (field: keyof ProductStoreFilters, value: string | number | undefined): void => {
-    setFilters(prev => ({ ...prev, [field]: value }));
+    setFilters((prev: ProductStoreFilters) => ({ ...prev, [field]: value }));
   };
 
   const clearFilters = (): void => {
@@ -148,76 +141,8 @@ export const ProductStoreList: React.FC = () => {
     });
   };
 
-  // ✅ FUNCIÓN PARA ABRIR MODAL DE EDICIÓN SIMPLIFICADA
-  const handleEditStock = (productStore: ProductStoreResponse): void => {
-    setEditingProductStore({
-      productStoreId: productStore.id,
-      productId: productStore.product.id,
-      storeId: productStore.store.id,
-      currentStock: productStore.currentStock,
-      productName: productStore.product.nameProduct,
-      storeName: productStore.store.name,
-    });
-    setShowEditModal(true);
-    setEditErrors({});
-  };
-
-  // ✅ GUARDAR CAMBIOS DE STOCK - SIMPLIFICADO SIN VALIDACIONES DE LOTES
-  const handleSaveStockEdit = async (): Promise<void> => {
-    if (!editingProductStore) return;
-
-    setEditLoading(true);
-    setEditErrors({});
-
-    try {
-      // Validaciones básicas
-      if (editingProductStore.currentStock < 0) {
-        setEditErrors({ currentStock: 'El stock no puede ser negativo' });
-        setEditLoading(false);
-        return;
-      }
-
-      // ✅ ACTUALIZACIÓN SIMPLIFICADA - minStockLevel = 0 por defecto
-      const updateData: ProductStoreRequest = {
-        productId: editingProductStore.productId,
-        storeId: editingProductStore.storeId,
-        currentStock: editingProductStore.currentStock,
-        minStockLevel: 0 // ✅ Siempre 0 por defecto
-      };
-
-      await productStoreAPI.updateProductStore(editingProductStore.productStoreId, updateData);
-      
-      success('Stock actualizado correctamente');
-      setShowEditModal(false);
-      setEditingProductStore(null);
-      await fetchAllData(); // Refresh data
-      
-    } catch (err) {
-      const errorMessage = err instanceof ApiError ? err.message : 'Error al actualizar el stock';
-      setEditErrors({ general: errorMessage });
-      notifyError(errorMessage);
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
-  const handleEditInputChange = (value: number): void => {
-    if (!editingProductStore) return;
-    
-    setEditingProductStore(prev => prev ? { ...prev, currentStock: value } : null);
-    
-    // Clear error when user starts typing
-    if (editErrors.currentStock) {
-      setEditErrors(prev => ({ ...prev, currentStock: '' }));
-    }
-  };
-
-  // Helper functions
-  const getStockStatus = (currentStock: number, minStock: number): {
-    status: 'normal' | 'low' | 'critical' | 'out';
-    label: string;
-    variant: 'success' | 'warning' | 'danger';
-  } => {
+  // Helper function para determinar estado del stock
+  const getStockStatus = (currentStock: number, minStock: number): StockStatus => {
     if (currentStock === 0) {
       return { status: 'out', label: 'Sin Stock', variant: 'danger' };
     }
@@ -230,8 +155,8 @@ export const ProductStoreList: React.FC = () => {
     return { status: 'normal', label: 'Normal', variant: 'success' };
   };
 
-  // Filtering logic
-  const filteredProductStores = productStores.filter((ps: ProductStoreResponse): boolean => {
+  // Lógica de filtrado
+  const filteredProductStores: ProductStoreResponse[] = productStores.filter((ps: ProductStoreResponse): boolean => {
     const matchesSearch = !filters.search || 
       ps.product.nameProduct.toLowerCase().includes(filters.search.toLowerCase()) ||
       ps.store.name.toLowerCase().includes(filters.search.toLowerCase()) ||
@@ -246,7 +171,7 @@ export const ProductStoreList: React.FC = () => {
     return matchesSearch && matchesStore && matchesCategory && matchesStockStatus;
   });
 
-  // Select options
+  // Opciones para los selects
   const storeOptions: SelectOption[] = [
     { value: '', label: 'Todas las tiendas' },
     ...stores.map((store: StoreResponse) => ({ value: store.id, label: store.name }))
@@ -267,7 +192,8 @@ export const ProductStoreList: React.FC = () => {
     { value: 'critical', label: 'Stock Crítico' },
     { value: 'out', label: 'Sin Stock' },
   ];
-  // Funciones para ProductStoreForm
+
+  // Funciones para ProductStoreForm unificado
   const handleEditProductStore = (productStore: ProductStoreResponse): void => {
     setEditingProductStoreForm(productStore);
     setShowProductStoreForm(true);
@@ -283,108 +209,115 @@ export const ProductStoreList: React.FC = () => {
     success(editingProductStoreForm ? 'Relación actualizada correctamente' : 'Producto agregado a tienda correctamente');
   };
 
-  // ✅ TABLA COLUMNS SIMPLIFICADA (SIN STOCK MÍNIMO)
+  // Definición de columnas de la tabla (UNIFICADO - UN SOLO BOTÓN)
   const columns: TableColumn<ProductStoreResponse>[] = [
-  {
-    key: 'store.name',
-    header: 'Tienda',
-    render: (value: unknown, row: ProductStoreResponse): React.ReactNode => (
-      <div>
-        <div className="font-medium text-gray-800">{String(value)}</div>
-        <div className="text-sm text-gray-600">{row.store.address}</div>
-      </div>
-    ),
-  },
-  {
-    key: 'product.nameProduct',
-    header: 'Producto',
-    render: (value: unknown, row: ProductStoreResponse): React.ReactNode => (
-      <div>
-        <div className="font-medium text-gray-800">{String(value)}</div>
-        <div className="text-sm text-gray-600">
-          {row.product.flavor && `${row.product.flavor} - `}
-          {row.product.category.name}
+    {
+      key: 'store.name',
+      header: 'Tienda',
+      render: (value: unknown, row: ProductStoreResponse): React.ReactNode => (
+        <div>
+          <div className="font-medium text-gray-800">{String(value)}</div>
+          <div className="text-sm text-gray-600">{row.store.address}</div>
         </div>
-        <div className="text-xs text-blue-600 font-mono">
-          Código: {row.product.code}
-        </div>
-      </div>
-    ),
-  },
-  {
-    key: 'currentStock',
-    header: 'Stock Actual',
-    render: (value: unknown, row: ProductStoreResponse): React.ReactNode => {
-      const stockInfo = getStockStatus(row.currentStock, row.minStockLevel);
-      return (
-        <div className="text-center">
-          <div className={`font-bold text-lg ${
-            stockInfo.status === 'normal' ? 'text-green-600' : 
-            stockInfo.status === 'low' ? 'text-yellow-600' : 
-            stockInfo.status === 'critical' ? 'text-orange-600' : 'text-red-600'
-          }`}>
-            {Number(value)}
-          </div>
-          <Badge variant={stockInfo.variant} size="sm">
-            {stockInfo.label}
-          </Badge>
-        </div>
-      );
+      ),
     },
-  },
-  // {
-  //   key: 'minStockLevel',
-  //   header: 'Stock Mínimo',
-  //   render: (value: unknown): React.ReactNode => (
-  //     <div className="text-center">
-  //       <span className="text-gray-700 font-medium">{Number(value)}</span>
-  //     </div>
-  //   ),
-  // },
-  {
-    key: 'lastUpdated',
-    header: 'Última Actualización',
-    render: (value: unknown): React.ReactNode => (
-      <span className="text-sm text-gray-600">
-        {formatters.date(String(value), 'short')}
-      </span>
-    ),
-  },
-  {
-    key: 'actions',
-    header: 'Acciones',
-    render: (_: unknown, row: ProductStoreResponse): React.ReactNode => (
-      <div className="flex justify-center space-x-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => handleEditStock(row)}
-        >
-          Editar Stock
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => handleEditProductStore(row)}
-        >
-          Editar Relación
-        </Button>
-      </div>
-    ),
-  },
-];
+    {
+      key: 'product.nameProduct',
+      header: 'Producto',
+      render: (value: unknown, row: ProductStoreResponse): React.ReactNode => (
+        <div>
+          <div className="font-medium text-gray-800">{String(value)}</div>
+          <div className="text-sm text-gray-600">
+            {row.product.flavor && `${row.product.flavor} - `}
+            {row.product.category.name}
+          </div>
+          <div className="text-xs text-blue-600 font-mono">
+            Código: {row.product.code}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'currentStock',
+      header: 'Stock Actual',
+      render: (value: unknown, row: ProductStoreResponse): React.ReactNode => {
+        const stockInfo = getStockStatus(row.currentStock, row.minStockLevel);
+        return (
+          <div className="text-center">
+            <div className={`font-bold text-lg ${
+              stockInfo.status === 'normal' ? 'text-green-600' : 
+              stockInfo.status === 'low' ? 'text-yellow-600' : 
+              stockInfo.status === 'critical' ? 'text-orange-600' : 'text-red-600'
+            }`}>
+              {Number(value)}
+            </div>
+            <Badge variant={stockInfo.variant} size="sm">
+              {stockInfo.label}
+            </Badge>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'minStockLevel',
+      header: 'Stock Mínimo',
+      render: (value: unknown): React.ReactNode => (
+        <div className="text-center">
+          <span className="text-gray-700 font-medium">{Number(value)}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'lastUpdated',
+      header: 'Última Actualización',
+      render: (value: unknown): React.ReactNode => (
+        <span className="text-sm text-gray-600">
+          {formatters.date(String(value), 'short')}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Acciones',
+      render: (_: unknown, row: ProductStoreResponse): React.ReactNode => (
+        <div className="flex justify-center">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleEditProductStore(row)}
+          >
+            Editar
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
-  // Summary calculations
-  const summaryStats = {
+  // Cálculos de resumen
+  const summaryStats: SummaryStats = {
     totalRelations: filteredProductStores.length,
-    totalStock: filteredProductStores.reduce((sum, ps) => sum + ps.currentStock, 0),
-    lowStockItems: filteredProductStores.filter(ps => 
+    totalStock: filteredProductStores.reduce((sum: number, ps: ProductStoreResponse) => sum + ps.currentStock, 0),
+    lowStockItems: filteredProductStores.filter((ps: ProductStoreResponse) => 
       getStockStatus(ps.currentStock, ps.minStockLevel).status === 'low'
     ).length,
-    criticalStockItems: filteredProductStores.filter(ps => 
+    criticalStockItems: filteredProductStores.filter((ps: ProductStoreResponse) => 
       getStockStatus(ps.currentStock, ps.minStockLevel).status === 'critical'
     ).length,
-    outOfStockItems: filteredProductStores.filter(ps => ps.currentStock === 0).length,
+    outOfStockItems: filteredProductStores.filter((ps: ProductStoreResponse) => ps.currentStock === 0).length,
+  };
+
+  const handleSelectChange = (field: keyof ProductStoreFilters) => 
+    (e: React.ChangeEvent<HTMLSelectElement>): void => {
+      const value = e.target.value;
+      if (field === 'storeId' || field === 'categoryId') {
+        handleFilterChange(field, value ? parseInt(value) : undefined);
+      } else {
+        handleFilterChange(field, value as ProductStoreFilters['stockStatus']);
+      }
+    };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    handleFilterChange('search', e.target.value);
   };
 
   return (
@@ -468,7 +401,7 @@ export const ProductStoreList: React.FC = () => {
           <Input
             placeholder="Buscar por producto, tienda, código..."
             value={filters.search}
-            onChange={(e) => handleFilterChange('search', e.target.value)}
+            onChange={handleSearchChange}
             leftIcon={
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -479,19 +412,19 @@ export const ProductStoreList: React.FC = () => {
           <Select
             options={storeOptions}
             value={filters.storeId?.toString() || ''}
-            onChange={(e) => handleFilterChange('storeId', e.target.value ? parseInt(e.target.value) : undefined)}
+            onChange={handleSelectChange('storeId')}
           />
           
           <Select
             options={categoryOptions}
             value={filters.categoryId?.toString() || ''}
-            onChange={(e) => handleFilterChange('categoryId', e.target.value ? parseInt(e.target.value) : undefined)}
+            onChange={handleSelectChange('categoryId')}
           />
 
           <Select
             options={stockStatusOptions}
             value={filters.stockStatus}
-            onChange={(e) => handleFilterChange('stockStatus', e.target.value as ProductStoreFilters['stockStatus'])}
+            onChange={handleSelectChange('stockStatus')}
           />
         </div>
         
@@ -543,76 +476,7 @@ export const ProductStoreList: React.FC = () => {
         )}
       </Card>
 
-      {/* ✅ MODAL DE EDICIÓN DE STOCK SIMPLIFICADO */}
-      <Modal
-        isOpen={showEditModal}
-        onClose={() => {
-          setShowEditModal(false);
-          setEditingProductStore(null);
-          setEditErrors({});
-        }}
-        title="Editar Stock de Tienda"
-        size="md"
-      >
-        {editingProductStore && (
-          <div className="space-y-4">
-            {editErrors.general && (
-              <Alert variant="error">{editErrors.general}</Alert>
-            )}
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-medium text-blue-900 mb-2">📦 Información</h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-blue-700">Producto:</span>
-                  <div className="font-medium text-blue-900">{editingProductStore.productName}</div>
-                </div>
-                <div>
-                  <span className="text-blue-700">Tienda:</span>
-                  <div className="font-medium text-blue-900">{editingProductStore.storeName}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* ✅ SOLO CAMPO DE STOCK ACTUAL */}
-            <Input
-              label="Stock Actual*"
-              type="number"
-              min="0"
-              value={editingProductStore.currentStock || ''}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-                handleEditInputChange(parseInt(e.target.value) || 0)
-              }
-              error={editErrors.currentStock}
-              placeholder="Cantidad actual en tienda"
-            />
-
-            <div className="flex justify-end space-x-3 pt-4">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setShowEditModal(false);
-                  setEditingProductStore(null);
-                  setEditErrors({});
-                }}
-                disabled={editLoading}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSaveStockEdit}
-                isLoading={editLoading}
-                disabled={editLoading}
-              >
-                Guardar Cambios
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-      {/* ProductStore Form Modal */}
+      {/* ProductStore Form Modal Unificado */}
       <ProductStoreForm
         isOpen={showProductStoreForm}
         onClose={handleProductStoreFormClose}

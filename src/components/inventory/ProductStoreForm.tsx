@@ -10,7 +10,6 @@ import { Alert } from '@/components/ui/Alert';
 import { ProductStoreRequest, ProductStoreResponse, ProductResponse, StoreResponse } from '@/types';
 import { productStoreAPI, productAPI, storeAPI, ApiError } from '@/services/api';
 import { useNotification } from '@/hooks/useNotification';
-import { validators } from '@/utils/validators';
 
 interface ProductStoreFormProps {
   isOpen: boolean;
@@ -75,7 +74,7 @@ export const ProductStoreForm: React.FC<ProductStoreFormProps> = ({
   const fetchProducts = useCallback(async (): Promise<void> => {
     try {
       const data = await productAPI.getAllProducts();
-      setProducts(data.filter(p => p.isActive));
+      setProducts(data.filter((p: ProductResponse) => p.isActive));
     } catch (err) {
       const errorMessage = err instanceof ApiError ? err.message : 'Error al cargar los productos';
       setError(errorMessage);
@@ -86,7 +85,7 @@ export const ProductStoreForm: React.FC<ProductStoreFormProps> = ({
   const fetchStores = useCallback(async (): Promise<void> => {
     try {
       const data = await storeAPI.getAllStores();
-      setStores(data.filter(s => s.isActive));
+      setStores(data.filter((s: StoreResponse) => s.isActive));
     } catch (err) {
       const errorMessage = err instanceof ApiError ? err.message : 'Error al cargar las tiendas';
       setError(errorMessage);
@@ -137,13 +136,21 @@ export const ProductStoreForm: React.FC<ProductStoreFormProps> = ({
       newErrors.storeId = 'La tienda es requerida';
     }
 
-    // Validación de combinación única (solo al crear)
-    if (!editingProductStore && formData.productId && formData.storeId) {
-      const isDuplicate = existingProductStores.some(ps => 
-        ps.product.id === formData.productId && ps.store.id === formData.storeId
-      );
-      if (isDuplicate) {
-        newErrors.combination = 'Esta combinación de producto y tienda ya existe.';
+    // Validación de combinación única (solo al crear o si se cambia la combinación)
+    if (!editingProductStore || 
+        (editingProductStore && 
+         (formData.productId !== editingProductStore.product.id || 
+          formData.storeId !== editingProductStore.store.id))) {
+      
+      if (formData.productId && formData.storeId) {
+        const isDuplicate = existingProductStores.some((ps: ProductStoreResponse) => 
+          ps.product.id === formData.productId && 
+          ps.store.id === formData.storeId &&
+          (!editingProductStore || ps.id !== editingProductStore.id)
+        );
+        if (isDuplicate) {
+          newErrors.combination = 'Esta combinación de producto y tienda ya existe.';
+        }
       }
     }
 
@@ -210,7 +217,7 @@ export const ProductStoreForm: React.FC<ProductStoreFormProps> = ({
 
   const handleProductChange = async (e: React.ChangeEvent<HTMLSelectElement>): Promise<void> => {
     const productId = parseInt(e.target.value) || 0;
-    setFormData(prev => ({ ...prev, productId }));
+    setFormData((prev: FormData) => ({ ...prev, productId }));
     
     if (productId !== 0) {
       try {
@@ -224,11 +231,16 @@ export const ProductStoreForm: React.FC<ProductStoreFormProps> = ({
     } else {
       setSelectedProduct(null);
     }
+
+    // Clear error when user changes selection
+    if (errors.productId) {
+      setErrors((prev: FormErrors) => ({ ...prev, productId: '' }));
+    }
   };
 
   const handleStoreChange = async (e: React.ChangeEvent<HTMLSelectElement>): Promise<void> => {
     const storeId = parseInt(e.target.value) || 0;
-    setFormData(prev => ({ ...prev, storeId }));
+    setFormData((prev: FormData) => ({ ...prev, storeId }));
     
     if (storeId !== 0) {
       try {
@@ -242,12 +254,17 @@ export const ProductStoreForm: React.FC<ProductStoreFormProps> = ({
     } else {
       setSelectedStore(null);
     }
+
+    // Clear error when user changes selection
+    if (errors.storeId) {
+      setErrors((prev: FormErrors) => ({ ...prev, storeId: '' }));
+    }
   };
 
   const handleInputChange = (field: keyof FormData, value: string | number): void => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev: FormData) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev: FormErrors) => ({ ...prev, [field]: '' }));
     }
   };
 
@@ -271,7 +288,7 @@ export const ProductStoreForm: React.FC<ProductStoreFormProps> = ({
 
   const productOptions: SelectOption[] = [
     { value: 0, label: 'Seleccionar producto...' },
-    ...products.map(product => ({ 
+    ...products.map((product: ProductResponse) => ({ 
       value: product.id, 
       label: `${product.nameProduct} - ${product.flavor || 'Sin sabor'} - ${product.category.name}` 
     }))
@@ -279,7 +296,7 @@ export const ProductStoreForm: React.FC<ProductStoreFormProps> = ({
 
   const storeOptions: SelectOption[] = [
     { value: 0, label: 'Seleccionar tienda...' },
-    ...stores.map(store => ({ 
+    ...stores.map((store: StoreResponse) => ({ 
       value: store.id, 
       label: `${store.name} - ${store.address}` 
     }))
@@ -329,7 +346,8 @@ export const ProductStoreForm: React.FC<ProductStoreFormProps> = ({
             onChange={handleProductChange}
             options={productOptions}
             error={errors.productId}
-            disabled={!!editingProductStore}
+            // Remove the disabled prop to allow editing of the relationship
+            // disabled={!!editingProductStore}
           />
 
           <Select
@@ -338,7 +356,8 @@ export const ProductStoreForm: React.FC<ProductStoreFormProps> = ({
             onChange={handleStoreChange}
             options={storeOptions}
             error={errors.storeId}
-            disabled={!!editingProductStore}
+            // Remove the disabled prop to allow editing of the relationship
+            // disabled={!!editingProductStore}
           />
 
           <Input

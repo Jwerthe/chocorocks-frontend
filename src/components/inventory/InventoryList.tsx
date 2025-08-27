@@ -398,12 +398,12 @@ export const InventoryList: React.FC = () => {
             - Salida
           </Button>
           */}
-            <Button
+            {/* <Button
             variant="secondary"
             onClick={() => setShowProductStoreForm(true)}
           >
             + Agregar a Tienda
-          </Button>
+          </Button> */}
           <Button
             variant="outline"
             onClick={() => openMovementForm(MovementType.TRANSFER)}
