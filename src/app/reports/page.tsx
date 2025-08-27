@@ -156,7 +156,7 @@ export default function ReportsPage(): JSX.Element {
         {/* ✅ NUEVA: Información sobre permisos */}
         <Alert variant="info">
           <div className="text-center">
-            <h3 className="font-bold mb-2">Módulos de Análisis Disponibles</h3>
+            <h3 className="font-bold text-left mb-2">Módulos de Análisis Disponibles</h3>
             <p>
               {isAdmin 
                 ? 'Como administrador, tienes acceso completo a todos los reportes incluyendo rentabilidad y dashboard ejecutivo.'
