@@ -6,7 +6,6 @@ import { UserModal } from '@/components/users/UserModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotification } from '@/hooks/useNotification';
@@ -26,18 +25,18 @@ const UsersPage: React.FC = () => {
     clearError,
   } = useUsers();
 
-  // ✅ Estados separados
-  const [searchQuery, setSearchQuery] = useState('');
+  // Estados separados
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [filteredUsers, setFilteredUsers] = useState<UserResponse[]>([]);
 
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState<boolean>(false);
   const [editingUser, setEditingUser] = useState<UserResponse | null>(null);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false);
   const [deletingUser, setDeletingUser] = useState<UserResponse | null>(null);
 
-  // ✅ Filtro sin ciclo infinito
+  // Filtro sin ciclo infinito
   useEffect(() => {
-    const filtered = users.filter(user =>
+    const filtered = users.filter((user: UserResponse) =>
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.identificationNumber.includes(searchQuery)
@@ -45,31 +44,31 @@ const UsersPage: React.FC = () => {
     setFilteredUsers(filtered);
   }, [users, searchQuery]);
 
-  const handleCreateUser = () => {
+  const handleCreateUser = (): void => {
     setShowModal(true);
     setEditingUser(null);
   };
 
-  const handleEditUser = (user: UserResponse) => {
+  const handleEditUser = (user: UserResponse): void => {
     setShowModal(true);
     setEditingUser(user);
   };
 
-  const handleDeleteUser = (user: UserResponse) => {
+  const handleDeleteUser = (user: UserResponse): void => {
     setShowDeleteDialog(true);
     setDeletingUser(user);
   };
 
-  const handleModalClose = () => {
+  const handleModalClose = (): void => {
     setShowModal(false);
     setEditingUser(null);
   };
 
-  const handleSearch = (query: string) => {
+  const handleSearch = (query: string): void => {
     setSearchQuery(query);
   };
 
-  const handleUserSave = async (userData: UserRequest) => {
+  const handleUserSave = async (userData: UserRequest): Promise<void> => {
     try {
       if (editingUser) {
         await updateUser(editingUser.id, userData);
@@ -86,7 +85,7 @@ const UsersPage: React.FC = () => {
     }
   };
 
-  const confirmDeleteUser = async () => {
+  const confirmDeleteUser = async (): Promise<void> => {
     if (!deletingUser) return;
     try {
       await deleteUser(deletingUser.id);
@@ -100,7 +99,7 @@ const UsersPage: React.FC = () => {
     }
   };
 
-  // 🔒 Control de acceso
+  // Control de acceso
   if (!currentUser) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -123,24 +122,28 @@ const UsersPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <Card
-        title="Gestión de Usuarios"
-        subtitle="Administra los usuarios del sistema"
-        actions={
+      <div className="space-y-6">
+        {/* Header with actions */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Gestión de Usuarios</h1>
+            <p className="text-gray-600 mt-1">Administra los usuarios del sistema y revisa sus actividades</p>
+          </div>
           <Button onClick={handleCreateUser}>
             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
             Nuevo Usuario
           </Button>
-        }
-      >
+        </div>
+
         {error && (
           <Alert variant="error" onClose={clearError}>
             {error}
           </Alert>
         )}
 
+        {/* Search bar for users tab only */}
         <div className="mb-6">
           <SearchInput
             onSearch={handleSearch}
@@ -148,6 +151,7 @@ const UsersPage: React.FC = () => {
           />
         </div>
 
+        {/* UserList component with tabs */}
         <UserList
           users={filteredUsers}
           loading={loading}
@@ -155,30 +159,30 @@ const UsersPage: React.FC = () => {
           onDelete={handleDeleteUser}
           currentUserId={currentUser.id}
         />
-      </Card>
 
-      {/* Modal de crear/editar usuario */}
-      <UserModal
-        isOpen={showModal}
-        onClose={handleModalClose}
-        onSave={handleUserSave}
-        user={editingUser}
-      />
+        {/* Modal de crear/editar usuario */}
+        <UserModal
+          isOpen={showModal}
+          onClose={handleModalClose}
+          onSave={handleUserSave}
+          user={editingUser}
+        />
 
-      {/* Diálogo de confirmación de eliminación */}
-      <ConfirmDialog
-        isOpen={showDeleteDialog}
-        onClose={() => {
-          setShowDeleteDialog(false);
-          setDeletingUser(null);
-        }}
-        onConfirm={confirmDeleteUser}
-        title="Eliminar Usuario"
-        message={`¿Estás seguro de que quieres eliminar al usuario "${deletingUser?.name}"? Esta acción no se puede deshacer.`}
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        variant="danger"
-      />
+        {/* Diálogo de confirmación de eliminación */}
+        <ConfirmDialog
+          isOpen={showDeleteDialog}
+          onClose={() => {
+            setShowDeleteDialog(false);
+            setDeletingUser(null);
+          }}
+          onConfirm={confirmDeleteUser}
+          title="Eliminar Usuario"
+          message={`¿Estás seguro de que quieres eliminar al usuario "${deletingUser?.name}"? Esta acción no se puede deshacer.`}
+          confirmText="Eliminar"
+          cancelText="Cancelar"
+          variant="danger"
+        />
+      </div>
     </div>
   );
 };

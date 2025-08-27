@@ -1,9 +1,11 @@
-// src/components/users/UserList.tsx
-import React from 'react';
+// src/components/users/UserList.tsx - Updated with Tabs
+import React, { useState } from 'react';
+import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Badge } from '@/components/ui/Badge';
+import { UserActivityList } from './UserActivityList';
 import { UserResponse, IdentificationType, UserRole } from '@/types';
 import { formatters } from '@/utils/formatters';
 
@@ -15,6 +17,17 @@ interface UserListProps {
   currentUserId: string;
 }
 
+interface TableColumn<T> {
+  key: string;
+  header: string;
+  render?: (value: unknown, row: T, index?: number) => React.ReactNode;
+}
+
+enum UserTab {
+  USERS = 'users',
+  ACTIVITIES = 'activities'
+}
+
 export const UserList: React.FC<UserListProps> = ({
   users,
   loading,
@@ -22,6 +35,8 @@ export const UserList: React.FC<UserListProps> = ({
   onDelete,
   currentUserId,
 }) => {
+  const [activeTab, setActiveTab] = useState<UserTab>(UserTab.USERS);
+
   const getRoleVariant = (role: UserRole): 'primary' | 'secondary' => {
     return role === 'ADMIN' ? 'primary' : 'secondary';
   };
@@ -35,13 +50,28 @@ export const UserList: React.FC<UserListProps> = ({
     return labels[type] || type;
   };
 
-  const columns = [
+  const renderTabButton = (tab: UserTab, label: string, icon: React.ReactNode) => (
+    <button
+      key={tab}
+      onClick={() => setActiveTab(tab)}
+      className={`flex items-center space-x-2 px-4 py-2 border-b-2 font-medium text-sm transition-colors ${
+        activeTab === tab
+          ? 'border-[#7ca1eb] text-[#7ca1eb]'
+          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+
+  const columns: TableColumn<UserResponse>[] = [
     {
       key: 'name',
       header: 'Nombre',
-      render: (value: string, user: UserResponse) => (
+      render: (value: unknown, user: UserResponse) => (
         <div>
-          <div className="font-medium text-gray-800">{value}</div>
+          <div className="font-medium text-gray-800">{value as string}</div>
           <div className="text-sm text-gray-500">{user.email}</div>
         </div>
       ),
@@ -49,8 +79,8 @@ export const UserList: React.FC<UserListProps> = ({
     {
       key: 'role',
       header: 'Rol',
-      render: (value: UserRole) => (
-        <Badge variant={getRoleVariant(value)}>
+      render: (value: unknown) => (
+        <Badge variant={getRoleVariant(value as UserRole)}>
           {value === 'ADMIN' ? 'Administrador' : 'Empleado'}
         </Badge>
       ),
@@ -58,10 +88,10 @@ export const UserList: React.FC<UserListProps> = ({
     {
       key: 'typeIdentification',
       header: 'Identificación',
-      render: (value: IdentificationType, user: UserResponse) => (
+      render: (value: unknown, user: UserResponse) => (
         <div>
           <div className="text-sm text-gray-600">
-            {getIdentificationTypeLabel(value)}
+            {getIdentificationTypeLabel(value as IdentificationType)}
           </div>
           <div className="font-medium text-gray-700">{user.identificationNumber}</div>
         </div>
@@ -70,28 +100,28 @@ export const UserList: React.FC<UserListProps> = ({
     {
       key: 'phoneNumber',
       header: 'Teléfono',
-      render: (value: string | undefined) => (
-        <span className='text-gray-800'>{value || '-'}</span>
+      render: (value: unknown) => (
+        <span className='text-gray-800'>{(value as string) || '-'}</span>
       ),
     },
     {
       key: 'isActive',
       header: 'Estado',
-      render: (value: boolean) => (
-        <StatusBadge status={value ? 'active' : 'inactive'} />
+      render: (value: unknown) => (
+        <StatusBadge status={value as boolean ? 'active' : 'inactive'} />
       ),
     },
     {
       key: 'createdAt',
       header: 'Fecha Registro',
-      render: (value: string) => (
-        <span className="text-sm text-gray-700">{formatters.date(value)}</span>
+      render: (value: unknown) => (
+        <span className="text-sm text-gray-700">{formatters.date(value as string)}</span>
       ),
     },
     {
       key: 'actions',
       header: 'Acciones',
-      render: (_: any, user: UserResponse) => (
+      render: (value: unknown, user: UserResponse) => (
         <div className="flex space-x-2">
           <Button
             size="sm"
@@ -123,19 +153,48 @@ export const UserList: React.FC<UserListProps> = ({
   ];
 
   return (
-    <div>
-      <div className="mb-4 flex justify-between items-center">
-        <h3 className="text-lg text-gray-800 font-bold">
-          {loading ? 'Cargando...' : `${users.length} usuario${users.length !== 1 ? 's' : ''} registrado${users.length !== 1 ? 's' : ''}`}
-        </h3>
+    <Card>
+      {/* Tabs Navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          {renderTabButton(
+            UserTab.USERS,
+            'Lista de Usuarios',
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+            </svg>
+          )}
+          {renderTabButton(
+            UserTab.ACTIVITIES,
+            'Registro de Actividades',
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          )}
+        </nav>
       </div>
 
-      <Table
-        data={users}
-        columns={columns}
-        loading={loading}
-        emptyMessage="No se encontraron usuarios registrados"
-      />
-    </div>
+      {/* Tab Content */}
+      <div className="p-6">
+        {activeTab === UserTab.USERS ? (
+          <div>
+            <div className="mb-4 flex justify-between items-center">
+              <h3 className="text-lg text-gray-800 font-bold">
+                {loading ? 'Cargando...' : `${users.length} usuario${users.length !== 1 ? 's' : ''} registrado${users.length !== 1 ? 's' : ''}`}
+              </h3>
+            </div>
+
+            <Table
+              data={users}
+              columns={columns}
+              loading={loading}
+              emptyMessage="No se encontraron usuarios registrados"
+            />
+          </div>
+        ) : (
+          <UserActivityList users={users} />
+        )}
+      </div>
+    </Card>
   );
 };

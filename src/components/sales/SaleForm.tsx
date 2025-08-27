@@ -16,22 +16,20 @@ import {
   UserResponse,
   ProductResponse,
   SaleDetailRequest,
+  SaleDetailResponse,
   SaleType,
-  ProductBatchResponse,
-  InventoryMovementRequest,
-  MovementType,
-  MovementReason
+  ProductStoreResponse
 } from '@/types';
 import { 
   saleAPI, 
   saleDetailAPI, 
   productAPI, 
-  productBatchAPI,
-  inventoryMovementAPI
+  productStoreAPI
 } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthNumericId } from '@/hooks/useAuthNumericId';
 import { AppError } from '@/lib/error-handler';
+import { formatters } from '@/utils/formatters';
 
 interface SaleFormProps {
   isOpen: boolean;
@@ -52,12 +50,11 @@ interface SaleItem {
   id?: number;
   productId: number;
   product?: ProductResponse;
-  batchId?: number; // ✅ LOTES
-  batch?: ProductBatchResponse; // ✅ LOTES
   quantity: number;
   unitPrice: number;
   subtotal: number;
   availableStock: number;
+  productStoreId: number; // Nueva propiedad para identificar la relación producto-tienda
 }
 
 interface TableColumn<T> {
@@ -68,6 +65,12 @@ interface TableColumn<T> {
 
 interface FormErrors {
   [key: string]: string;
+}
+
+interface ProductStoreInfo {
+  stock: number;
+  productStoreId: number;
+  exists: boolean;
 }
 
 export const SaleForm: React.FC<SaleFormProps> = ({
@@ -81,14 +84,11 @@ export const SaleForm: React.FC<SaleFormProps> = ({
 }) => {
   const { user } = useAuth();
   const { numericUserId, loading: loadingUserId, error: userError } = useAuthNumericId();
+  const [loadingProducts, setLoadingProducts] = useState<boolean>(false);
 
-  // ✅ FUNCIÓN formatCurrency ANTES de usarla
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('es-EC', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount || 0);
-  };
+  const formatCurrency = useCallback((amount: number): string => {
+    return formatters.currency(amount || 0);
+  }, []);
 
   const [formData, setFormData] = useState<SaleRequest>({
     saleNumber: '',
@@ -119,12 +119,13 @@ export const SaleForm: React.FC<SaleFormProps> = ({
   const [showAddItem, setShowAddItem] = useState<boolean>(false);
   const [newItem, setNewItem] = useState<Partial<SaleItem>>({
     productId: 0,
-    batchId: undefined, // ✅ LOTES
     quantity: 1,
   });
-  const [availableBatches, setAvailableBatches] = useState<ProductBatchResponse[]>([]); // ✅ LOTES
   
-  // ✅ FUNCIÓN para generar número de venta automáticamente
+  // Client form
+  const [showClientForm, setShowClientForm] = useState<boolean>(false);
+
+  // Función para generar número de venta automáticamente
   const generateSaleNumber = useCallback((): string => {
     const date = new Date();
     const year = date.getFullYear();
@@ -134,80 +135,74 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     
     return `VT-${year}${month}${day}-${random}`;
   }, []);
-  // Client form
-  const [showClientForm, setShowClientForm] = useState<boolean>(false);
 
-  // ✅ FUNCIÓN para obtener stock real de un producto
-  const getProductStock = useCallback(async (productId: number): Promise<number> => {
+  // Función para obtener stock real de ProductStore
+  const getProductStoreStock = useCallback(async (productId: number, storeId: number): Promise<ProductStoreInfo> => {
     try {
-      const batches = await productBatchAPI.getAllBatches();
-      const productBatches = batches.filter(batch => 
-        batch.product.id === productId && 
-        batch.isActive && 
-        batch.currentQuantity > 0
+      const productStores = await productStoreAPI.getAllProductStores();
+      const productStore = productStores.find((ps: ProductStoreResponse) => 
+        ps.product.id === productId && ps.store.id === storeId
       );
       
-      const totalStock = productBatches.reduce((total, batch) => total + batch.currentQuantity, 0);
-      console.log(`📦 Stock del producto ${productId}: ${totalStock}`);
-      return totalStock;
+      if (productStore) {
+        return {
+          stock: productStore.currentStock,
+          productStoreId: productStore.id,
+          exists: true
+        };
+      } else {
+        return { stock: 0, productStoreId: 0, exists: false };
+      }
     } catch (err) {
-      console.error('Error getting product stock:', err);
-      return 0;
+      console.error('Error getting ProductStore stock:', err);
+      return { stock: 0, productStoreId: 0, exists: false };
     }
   }, []);
 
-  // ✅ NUEVO: Cargar lotes disponibles para un producto FILTRADOS POR TIENDA
-  const fetchBatchesForProduct = useCallback(async (productId: number): Promise<void> => {
-    try {
-      const batches = await productBatchAPI.getAllBatches();
-      let productBatches = batches.filter(batch => 
-        batch.product.id === productId && 
-        batch.isActive && 
-        batch.currentQuantity > 0
-      );
-
-      // ✅ NUEVO: Filtrar por tienda seleccionada
-      if (formData.storeId > 0) {
-        productBatches = productBatches.filter(batch => 
-          batch.store?.id === formData.storeId
-        );
-      }
-
-      setAvailableBatches(productBatches);
-      
-      // Si solo hay un lote, seleccionarlo automáticamente
-      if (productBatches.length === 1) {
-        setNewItem(prev => ({ ...prev, batchId: productBatches[0].id }));
-      } else if (productBatches.length === 0) {
-        setNewItem(prev => ({ ...prev, batchId: undefined }));
-      }
-    } catch (err) {
-      console.error('Error fetching batches:', err);
-      setAvailableBatches([]);
+  // Función para cargar productos disponibles en la tienda seleccionada
+  const fetchProductsForStore = useCallback(async (storeId: number): Promise<void> => {
+    if (!storeId || storeId === 0) {
+      setProducts([]);
+      setProductStocks(new Map());
+      return;
     }
-  }, [formData.storeId]);
 
-  // ✅ CARGAR stocks de todos los productos
-  const fetchProductStocks = useCallback(async (): Promise<void> => {
     try {
-      const stockMap = new Map<number, number>();
+      setLoadingProducts(true);
+      const [allProducts, productStores] = await Promise.all([
+        productAPI.getAllProducts(),
+        productStoreAPI.getAllProductStores()
+      ]);
       
-      for (const product of products) {
-        const stock = await getProductStock(product.id);
-        stockMap.set(product.id, stock);
-      }
+      // Filtrar productos que están disponibles en la tienda seleccionada
+      const storeProductStores = productStores.filter((ps: ProductStoreResponse) => ps.store.id === storeId);
+      const availableProducts = allProducts.filter((product: ProductResponse) => 
+        product.isActive && storeProductStores.some((ps: ProductStoreResponse) => ps.product.id === product.id)
+      );
+      
+      setProducts(availableProducts);
+      
+      // Crear mapa de stocks basado en ProductStore
+      const stockMap = new Map<number, number>();
+      storeProductStores.forEach((ps: ProductStoreResponse) => {
+        stockMap.set(ps.product.id, ps.currentStock);
+      });
       
       setProductStocks(stockMap);
-      console.log('📊 Stocks cargados:', Object.fromEntries(stockMap));
+      console.log('Productos disponibles en tienda:', availableProducts.length);
     } catch (err) {
-      console.error('Error fetching product stocks:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Error al cargar productos de la tienda';
+      setError(errorMessage);
+      console.error('Error loading products for store:', err);
+    } finally {
+      setLoadingProducts(false);
     }
-  }, [products, getProductStock]);
+  }, []);
 
   const resetForm = useCallback((): void => {
     setFormData({
       saleNumber: generateSaleNumber(),
-      userId: numericUserId > 0 ? numericUserId.toString() : '', // ✅ Usuario autenticado por defecto
+      userId: numericUserId > 0 ? numericUserId.toString() : '',
       clientId: undefined,
       storeId: 0,
       saleType: SaleType.RETAIL,
@@ -224,32 +219,18 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     setSaleItems([]);
     setErrors({});
     setError('');
-    setNewItem({ productId: 0, batchId: undefined, quantity: 1 });
-    setAvailableBatches([]);
-  }, [numericUserId]);
+    setNewItem({ productId: 0, quantity: 1 });
+    setProducts([]);
+    setProductStocks(new Map());
+  }, [numericUserId, generateSaleNumber]);
 
-  const fetchProducts = useCallback(async (): Promise<void> => {
-    try {
-      setLoading(true);
-      const data = await productAPI.getAllProducts();
-      setProducts(data.filter(p => p.isActive));
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al cargar productos';
-      setError(errorMessage);
-      console.error('Error loading products:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // ✅ CORREGIDO: Cargar detalles de venta usando API separada
+  // Cargar detalles de venta usando API separada
   const loadSaleItems = useCallback(async (saleId: number): Promise<void> => {
     try {
       console.log('🔍 Loading sale details for sale ID:', saleId);
       
-      // ✅ CORREGIDO: SaleResponse NO incluye saleDetails - usar API separada
       const allSaleDetails = await saleDetailAPI.getAllSaleDetails();
-      const saleDetails = allSaleDetails.filter(detail => detail.sale.id === saleId);
+      const saleDetails = allSaleDetails.filter((detail: SaleDetailResponse) => detail.sale.id === saleId);
       
       console.log('📋 Sale details found:', saleDetails.length);
       
@@ -257,17 +238,16 @@ export const SaleForm: React.FC<SaleFormProps> = ({
         const items: SaleItem[] = [];
         
         for (const detail of saleDetails) {
-          const availableStock = await getProductStock(detail.product.id);
+          const productStoreInfo = await getProductStoreStock(detail.product.id, formData.storeId);
           items.push({
             id: detail.id,
             productId: detail.product.id,
             product: detail.product,
-            batchId: detail.batch?.id,
-            batch: detail.batch,
             quantity: detail.quantity,
             unitPrice: Number(detail.unitPrice),
             subtotal: Number(detail.subtotal),
-            availableStock: availableStock + detail.quantity
+            availableStock: productStoreInfo.stock + detail.quantity,
+            productStoreId: productStoreInfo.productStoreId
           });
         }
         
@@ -281,13 +261,11 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       console.error('❌ Error loading sale items:', err);
       setSaleItems([]);
     }
-  }, [getProductStock]);
+  }, [getProductStoreStock, formData.storeId]);
 
-  // ✅ Inicializar cuando se abre el modal
+  // Inicializar cuando se abre el modal
   useEffect(() => {
     if (isOpen) {
-      fetchProducts();
-      
       if (editingSale) {
         setFormData({
           saleNumber: editingSale.saleNumber,
@@ -305,36 +283,33 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           notes: editingSale.notes || '',
           isInvoiced: editingSale.isInvoiced,
         });
-        loadSaleItems(editingSale.id);
+        
+        // Cargar productos de la tienda y luego los items
+        fetchProductsForStore(editingSale.store.id).then(() => {
+          loadSaleItems(editingSale.id);
+        });
       } else {
         resetForm();
       }
     }
-  }, [isOpen, editingSale, fetchProducts, loadSaleItems, resetForm]);
+  }, [isOpen, editingSale?.id, editingSale?.store.id]);
 
-  // ✅ NUEVO: Actualizar userId cuando se obtenga del hook
+  // Actualizar userId cuando se obtenga del hook
   useEffect(() => {
     if (numericUserId > 0 && !editingSale) {
-      setFormData(prev => ({ ...prev, userId: numericUserId.toString() }));
+      setFormData((prev: SaleRequest) => ({ ...prev, userId: numericUserId.toString() }));
     }
   }, [numericUserId, editingSale]);
 
-  // ✅ Cargar lotes cuando se seleccione un producto
+  // Cargar productos cuando cambie la tienda
   useEffect(() => {
-    if (newItem.productId && newItem.productId > 0) {
-      fetchBatchesForProduct(newItem.productId);
+    if (formData.storeId && formData.storeId > 0) {
+      fetchProductsForStore(formData.storeId);
     } else {
-      setAvailableBatches([]);
-      setNewItem(prev => ({ ...prev, batchId: undefined }));
+      setProducts([]);
+      setProductStocks(new Map());
     }
-  }, [newItem.productId, fetchBatchesForProduct]);
-
-  // ✅ Cargar stocks cuando cambien los productos
-  useEffect(() => {
-    if (products.length > 0) {
-      fetchProductStocks();
-    }
-  }, [products, fetchProductStocks]);
+  }, [formData.storeId]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -371,8 +346,8 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ VALIDACIÓN mejorada con lotes
-  const validateNewItem = async (): Promise<boolean> => {
+  // Validación mejorada con ProductStore
+  const validateNewItem = useCallback(async (): Promise<boolean> => {
     const newErrors: FormErrors = {};
 
     if (!newItem.productId || newItem.productId === 0) {
@@ -383,50 +358,46 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       newErrors.newItemQuantity = 'La cantidad debe ser mayor a 0';
     }
 
-    // ✅ VALIDACIÓN DE STOCK con lotes
-    if (newItem.productId && newItem.quantity) {
-      if (newItem.batchId) {
-        // Si se seleccionó un lote específico
-        const selectedBatch = availableBatches.find(b => b.id === newItem.batchId);
-        if (selectedBatch && newItem.quantity > selectedBatch.currentQuantity) {
-          newErrors.newItemQuantity = `Stock insuficiente en lote ${selectedBatch.batchCode}. Disponible: ${selectedBatch.currentQuantity}`;
-        }
+    // Validación de stock usando ProductStore
+    if (newItem.productId && newItem.quantity && formData.storeId) {
+      const productStoreInfo = await getProductStoreStock(newItem.productId, formData.storeId);
+      
+      if (!productStoreInfo.exists) {
+        newErrors.newItemProduct = 'Este producto no está disponible en la tienda seleccionada';
       } else {
-        // Si no se seleccionó lote, validar stock total
-        const availableStock = productStocks.get(newItem.productId) || 0;
-        const existingItem = saleItems.find(item => item.productId === newItem.productId);
+        const existingItem = saleItems.find((item: SaleItem) => item.productId === newItem.productId);
         const existingQuantity = existingItem ? existingItem.quantity : 0;
         const totalRequested = (newItem.quantity || 0) + existingQuantity;
 
-        if (totalRequested > availableStock) {
-          newErrors.newItemQuantity = `Stock insuficiente. Disponible: ${availableStock}, Ya en venta: ${existingQuantity}`;
+        if (totalRequested > productStoreInfo.stock) {
+          newErrors.newItemQuantity = `Stock insuficiente. Disponible: ${productStoreInfo.stock}, Ya en venta: ${existingQuantity}`;
         }
-      }
 
-      const existingItem = saleItems.find(item => 
-        item.productId === newItem.productId && 
-        item.batchId === newItem.batchId
-      );
-      if (existingItem) {
-        newErrors.newItemProduct = 'Este producto/lote ya está en la venta. Use "Editar" para cambiar la cantidad.';
+        if (existingItem) {
+          newErrors.newItemProduct = 'Este producto ya está en la venta. Use "Editar" para cambiar la cantidad.';
+        }
       }
     }
 
-    setErrors(prev => ({ ...prev, ...newErrors }));
+    setErrors((prev: FormErrors) => ({ ...prev, ...newErrors }));
     return Object.keys(newErrors).length === 0;
-  };
+  }, [newItem.productId, newItem.quantity, formData.storeId, saleItems, getProductStoreStock]);
 
-  const addItemToSale = async (): Promise<void> => {
+  const addItemToSale = useCallback(async (): Promise<void> => {
     if (!(await validateNewItem())) return;
 
-    const product = products.find(p => p.id === newItem.productId);
-    if (!product) return;
+    const product = products.find((p: ProductResponse) => p.id === newItem.productId);
+    if (!product || !newItem.productId) return;
 
-    const unitPrice = Number(product.retailPrice) || 0;
+    // Usar el precio correcto según el tipo de venta
+    const unitPrice = formData.saleType === SaleType.WHOLESALE 
+      ? Number(product.wholesalePrice) 
+      : Number(product.retailPrice);
+      
     if (unitPrice === 0) {
-      setErrors(prev => ({ 
+      setErrors((prev: FormErrors) => ({ 
         ...prev, 
-        newItemProduct: 'Este producto no tiene precio configurado' 
+        newItemProduct: 'Este producto no tiene precio configurado para el tipo de venta seleccionado' 
       }));
       return;
     }
@@ -434,56 +405,49 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     const quantity = newItem.quantity || 1;
     const subtotal = unitPrice * quantity;
     
-    // ✅ INFORMACIÓN del lote
-    const selectedBatch = availableBatches.find(b => b.id === newItem.batchId);
-    const availableStock = selectedBatch 
-      ? selectedBatch.currentQuantity 
-      : (productStocks.get(product.id) || 0);
+    // Obtener información del ProductStore
+    const productStoreInfo = await getProductStoreStock(newItem.productId!, formData.storeId);
 
     const item: SaleItem = {
       productId: product.id,
       product,
-      batchId: newItem.batchId,
-      batch: selectedBatch,
       quantity,
       unitPrice,
       subtotal,
-      availableStock
+      availableStock: productStoreInfo.stock,
+      productStoreId: productStoreInfo.productStoreId
     };
 
-    setSaleItems(prev => [...prev, item]);
-    setNewItem({ productId: 0, batchId: undefined, quantity: 1 });
-    setAvailableBatches([]);
+    setSaleItems((prev: SaleItem[]) => [...prev, item]);
+    setNewItem({ productId: 0, quantity: 1 });
     setShowAddItem(false);
     
     // Clear any item-related errors
-    setErrors(prev => {
+    setErrors((prev: FormErrors) => {
       const { newItemProduct, newItemQuantity, items, ...rest } = prev;
       return rest;
     });
-  };
+  }, [validateNewItem, products, newItem.productId, newItem.quantity, formData.saleType, formData.storeId, getProductStoreStock]);
 
-  const removeItemFromSale = (index: number): void => {
-    setSaleItems(prev => prev.filter((_, i) => i !== index));
-  };
+  const removeItemFromSale = useCallback((index: number): void => {
+    setSaleItems((prev: SaleItem[]) => prev.filter((_, i: number) => i !== index));
+  }, []);
 
-  const updateItemQuantity = async (index: number, newQuantity: number): Promise<void> => {
+  const updateItemQuantity = useCallback(async (index: number, newQuantity: number): Promise<void> => {
     if (newQuantity <= 0) return;
 
     const item = saleItems[index];
     if (!item) return;
 
-    // ✅ VALIDAR STOCK al actualizar cantidad
-    const availableStock = item.batch 
-      ? item.batch.currentQuantity 
-      : (productStocks.get(item.productId) || 0);
+    // Validar stock disponible en ProductStore
+    const productStoreInfo = await getProductStoreStock(item.productId, formData.storeId);
     
-    if (newQuantity > availableStock) {
-      setError(`Stock insuficiente para ${item.product?.nameProduct}. Disponible: ${availableStock}`);
+    if (newQuantity > productStoreInfo.stock) {
+      setError(`Stock insuficiente para ${item.product?.nameProduct}. Disponible: ${productStoreInfo.stock}`);
       return;
     }
 
-    setSaleItems(prev => prev.map((saleItem, i) => {
+    setSaleItems((prev: SaleItem[]) => prev.map((saleItem: SaleItem, i: number) => {
       if (i === index) {
         const subtotal = saleItem.unitPrice * newQuantity;
         return { ...saleItem, quantity: newQuantity, subtotal };
@@ -492,37 +456,9 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     }));
     
     setError('');
-  };
+  }, [saleItems, getProductStoreStock, formData.storeId]);
 
-  // ✅ CREAR movimientos de inventario con lotes
-  const createInventoryMovements = async (saleId: number): Promise<void> => {
-    if (!formData.userId) return;
-
-    for (const item of saleItems) {
-      try {
-        const movementData: InventoryMovementRequest = {
-          productId: item.productId,
-          batchId: item.batchId, // ✅ INCLUIR lote específico
-          fromStoreId: formData.storeId,
-          movementType: MovementType.OUT,
-          quantity: item.quantity,
-          reason: MovementReason.SALE,
-          userId: formData.userId,
-          referenceId: saleId,
-          referenceType: 'SALE',
-          notes: `Venta #${formData.saleNumber}`
-        };
-
-        await inventoryMovementAPI.createMovement(movementData);
-        console.log(`✅ Movimiento creado para producto ${item.productId}: -${item.quantity} desde tienda ${formData.storeId}`);
-      } catch (err) {
-        console.error(`Error creating inventory movement for product ${item.productId}:`, err);
-        throw new Error(`Error al actualizar inventario del producto ${item.productId}: ${err instanceof Error ? err.message : 'Error desconocido'}`);
-      }
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     
     if (!validateForm()) return;
@@ -531,25 +467,27 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     setError('');
 
     try {
-      // ✅ VALIDACIÓN FINAL DE STOCK para todos los items
+      // Validación final de stock para todos los items usando ProductStore
       for (const item of saleItems) {
-        const availableStock = item.batch 
-          ? item.batch.currentQuantity 
-          : (productStocks.get(item.productId) || 0);
+        const productStoreInfo = await getProductStoreStock(item.productId, formData.storeId);
         
-        if (item.quantity > availableStock) {
-          throw new Error(`Stock insuficiente para ${item.product?.nameProduct}. Disponible: ${availableStock}, Solicitado: ${item.quantity}`);
+        if (!productStoreInfo.exists) {
+          throw new Error(`El producto ${item.product?.nameProduct} no está disponible en la tienda seleccionada`);
+        }
+        
+        if (item.quantity > productStoreInfo.stock) {
+          throw new Error(`Stock insuficiente para ${item.product?.nameProduct}. Disponible: ${productStoreInfo.stock}, Solicitado: ${item.quantity}`);
         }
       }
 
       // Calculate final totals
-      const subtotal = saleItems.reduce((sum, item) => sum + item.subtotal, 0);
+      const subtotal = saleItems.reduce((sum: number, item: SaleItem) => sum + item.subtotal, 0);
       const discountAmount = subtotal * (formData.discountPercentage / 100);
       const taxableAmount = subtotal - discountAmount;
       const taxAmount = taxableAmount * (formData.taxPercentage / 100);
       const totalAmount = taxableAmount + taxAmount;
 
-      // ✅ PREPARAR datos de venta
+      // Preparar datos de venta
       const saleData: SaleRequest = {
         ...formData,
         userId: formData.userId,
@@ -559,7 +497,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
         totalAmount: Number(totalAmount.toFixed(2)),
       };
 
-      // ✅ Solo incluir clientId si tiene valor
+      // Solo incluir clientId si tiene valor
       if (formData.clientId && formData.clientId > 0) {
         saleData.clientId = formData.clientId;
       }
@@ -573,12 +511,11 @@ export const SaleForm: React.FC<SaleFormProps> = ({
         savedSale = await saleAPI.createSale(saleData);
       }
 
-      // ✅ GUARDAR detalles con batchId
+      // Guardar detalles sin batchId
       for (const item of saleItems) {
         const saleDetailData: SaleDetailRequest = {
           saleId: savedSale.id,
           productId: item.productId,
-          batchId: item.batchId, // ✅ INCLUIR batchId
           quantity: item.quantity,
         };
 
@@ -586,16 +523,6 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           await saleDetailAPI.updateSaleDetail(item.id, saleDetailData);
         } else {
           await saleDetailAPI.createSaleDetail(saleDetailData);
-        }
-      }
-
-      // ✅ CREAR movimientos de inventario solo para ventas nuevas
-      if (!editingSale) {
-        try {
-          await createInventoryMovements(savedSale.id);
-        } catch (invError) {
-          console.error('Error al actualizar inventario:', invError);
-          setError(`Venta guardada exitosamente, pero hubo un error al actualizar el inventario: ${invError instanceof Error ? invError.message : 'Error desconocido'}`);
         }
       }
 
@@ -624,49 +551,52 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [validateForm, saleItems, formData, getProductStoreStock, editingSale, onSuccess]);
 
-  const handleInputChange = (field: keyof SaleRequest, value: string | number | boolean | undefined): void => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = useCallback((field: keyof SaleRequest, value: string | number | boolean | undefined): void => {
+    setFormData((prev: SaleRequest) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev: FormErrors) => ({ ...prev, [field]: '' }));
     }
-  };
+  }, [errors]);
 
-  const handleModalClose = (): void => {
+  const handleModalClose = useCallback((): void => {
     resetForm();
     onClose();
-  };
+  }, [resetForm, onClose]);
 
-  const handleClientCreated = (newClient: ClientResponse): void => {
+  const handleClientCreated = useCallback((newClient: ClientResponse): void => {
     clients.push(newClient);
-    setFormData(prev => ({ ...prev, clientId: newClient.id }));
+    setFormData((prev: SaleRequest) => ({ ...prev, clientId: newClient.id }));
     setShowClientForm(false);
-  };
+  }, [clients]);
 
   // Opciones para selects
   const storeOptions: SelectOption[] = [
     { value: 0, label: 'Seleccionar tienda...' },
-    ...stores.map(store => ({ value: store.id, label: store.name }))
+    ...stores.map((store: StoreResponse) => ({ value: store.id, label: store.name }))
   ];
 
   const clientOptions: SelectOption[] = [
     { value: '', label: 'Cliente General (Sin cliente específico)' },
-    ...clients.map(client => ({ value: client.id, label: client.nameLastname }))
+    ...clients.map((client: ClientResponse) => ({ value: client.id, label: client.nameLastname }))
   ];
 
   const productOptions: SelectOption[] = [
     { value: 0, label: 'Seleccionar producto...' },
-    ...products.map(product => {
+    ...products.map((product: ProductResponse) => {
       const stock = productStocks.get(product.id) || 0;
+      const price = formData.saleType === SaleType.WHOLESALE 
+        ? product.wholesalePrice 
+        : product.retailPrice;
       return { 
         value: product.id, 
-        label: `${product.nameProduct} - ${product.flavor || 'Sin sabor'} (Stock: ${stock}) - ${formatCurrency(product.retailPrice || 0)}` 
+        label: `${product.nameProduct} - ${product.flavor || 'Sin sabor'} (Stock: ${stock}) - ${formatCurrency(Number(price))}` 
       };
     })
   ];
 
-  // ✅ NUEVO: Opciones de método de pago
+  // Opciones de método de pago
   const paymentMethodOptions: SelectOption[] = [
     { value: '', label: 'Seleccionar método de pago...' },
     { value: 'Efectivo', label: 'Efectivo' },
@@ -679,7 +609,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
 
   const userOptions: SelectOption[] = [
     { value: '', label: 'Seleccionar vendedor...' },
-    ...users.map(user => ({ value: user.id, label: `${user.name} (${user.email})` }))
+    ...users.map((user: UserResponse) => ({ value: user.id, label: `${user.name} (${user.email})` }))
   ];
 
   const saleTypeOptions: SelectOption[] = [
@@ -687,17 +617,8 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     { value: SaleType.WHOLESALE, label: 'Venta al Por Mayor' },
   ];
 
-  // ✅ OPCIONES de lotes disponibles
-  const batchOptions: SelectOption[] = [
-    { value: '', label: 'Sin lote específico (se tomará el más antiguo)' },
-    ...availableBatches.map(batch => ({ 
-      value: batch.id.toString(), 
-      label: `${batch.batchCode} (Disponible: ${batch.currentQuantity})` 
-    }))
-  ];
-
   // Calcular totales para mostrar
-  const subtotal = saleItems.reduce((sum, item) => sum + item.subtotal, 0);
+  const subtotal = saleItems.reduce((sum: number, item: SaleItem) => sum + item.subtotal, 0);
   const discountAmount = subtotal * (formData.discountPercentage / 100);
   const taxableAmount = subtotal - discountAmount;
   const taxAmount = taxableAmount * (formData.taxPercentage / 100);
@@ -707,7 +628,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     {
       key: 'product',
       header: 'Producto',
-      render: (_, item) => (
+      render: (_: unknown, item: SaleItem) => (
         <div>
           <div className="font-medium text-gray-800">
             {item.product?.nameProduct}
@@ -715,18 +636,16 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           <div className="text-sm text-gray-500">
             {item.product?.flavor} - {item.product?.size}
           </div>
-          {item.batch && (
-            <div className="text-xs text-blue-600">
-              Lote: {item.batch.batchCode} (Stock: {item.batch.currentQuantity})
-            </div>
-          )}
+          <div className="text-xs text-gray-600">
+            Stock disponible: {item.availableStock}
+          </div>
         </div>
       ),
     },
     {
       key: 'quantity',
       header: 'Cantidad',
-      render: (_, item, index) => (
+      render: (_: unknown, item: SaleItem, index?: number) => (
         <Input
           type="number"
           min="1"
@@ -741,7 +660,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     {
       key: 'unitPrice',
       header: 'Precio Unit.',
-      render: (value) => (
+      render: (value: unknown) => (
         <span className="text-gray-700 font-medium">
           {formatCurrency(value as number)}
         </span>
@@ -750,7 +669,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     {
       key: 'subtotal',
       header: 'Subtotal',
-      render: (value) => (
+      render: (value: unknown) => (
         <span className="text-gray-700 font-medium">
           {formatCurrency(value as number)}
         </span>
@@ -759,7 +678,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     {
       key: 'actions',
       header: 'Acciones',
-      render: (_, __, index) => (
+      render: (_: unknown, __: SaleItem, index?: number) => (
         <Button
           size="sm"
           variant="danger"
@@ -771,7 +690,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     },
   ];
 
-  const isUserValid = formData.userId && formData.userId.trim() !== '';
+  const isUserValid = Boolean(formData.userId && formData.userId.trim() !== '');
 
   return (
     <Modal
@@ -786,25 +705,25 @@ export const SaleForm: React.FC<SaleFormProps> = ({
 
         {/* Información básica de la venta */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Input
-          label="Número de Venta*"
-          value={formData.saleNumber}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-            handleInputChange('saleNumber', e.target.value)}
-          error={errors.saleNumber}
-          placeholder="Ej: VT-20250826-XXXX"
-          disabled={!!editingSale}
-          rightIcon={!editingSale ? (
-            <button
-              type="button"
-              onClick={() => setFormData(prev => ({ ...prev, saleNumber: generateSaleNumber() }))}
-              className="text-[#7ca1eb] hover:text-[#6b90da]"
-              title="Generar nuevo número"
-            >
-              🔄
-            </button>
-          ) : undefined}
-        />
+          <Input
+            label="Número de Venta*"
+            value={formData.saleNumber}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+              handleInputChange('saleNumber', e.target.value)}
+            error={errors.saleNumber}
+            placeholder="Ej: VT-20250826-XXXX"
+            disabled={!!editingSale}
+            rightIcon={!editingSale ? (
+              <button
+                type="button"
+                onClick={() => setFormData((prev: SaleRequest) => ({ ...prev, saleNumber: generateSaleNumber() }))}
+                className="text-[#7ca1eb] hover:text-[#6b90da]"
+                title="Generar nuevo número"
+              >
+                🔄
+              </button>
+            ) : undefined}
+          />
 
           <Select
             label="Vendedor*"
@@ -832,7 +751,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
             options={saleTypeOptions}
           />
 
-          {/* ✅ NUEVO: Método de pago como dropdown */}
+          {/* Método de pago como dropdown */}
           <Select
             label="Método de Pago*"
             value={formData.paymentMethod}
@@ -854,14 +773,6 @@ export const SaleForm: React.FC<SaleFormProps> = ({
             options={clientOptions}
             className="flex-1"
           />
-          {/* <Button
-            type="button"
-            variant="outline"
-            onClick={() => setShowClientForm(true)}
-            className="mt-6"
-          >
-            Nuevo Cliente
-          </Button> */}
         </div>
 
         {/* Items de la venta */}
@@ -905,8 +816,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
             isOpen={showAddItem}
             onClose={() => {
               setShowAddItem(false);
-              setNewItem({ productId: 0, batchId: undefined, quantity: 1 });
-              setAvailableBatches([]);
+              setNewItem({ productId: 0, quantity: 1 });
             }}
             title="Agregar Producto"
             size="md"
@@ -916,25 +826,14 @@ export const SaleForm: React.FC<SaleFormProps> = ({
                 label="Producto*"
                 value={newItem.productId || 0}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
-                  setNewItem(prev => ({ ...prev, productId: parseInt(e.target.value) || 0 }))}
+                  setNewItem((prev: Partial<SaleItem>) => ({ ...prev, productId: parseInt(e.target.value) || 0 }))}
                 options={productOptions}
                 error={errors.newItemProduct}
               />
 
-              {/* ✅ SELECCIÓN de lote (solo si hay lotes disponibles) */}
-              {availableBatches.length > 0 && (
-                <Select
-                  label="Lote (Opcional - Si no selecciona, se tomará el más antiguo)"
-                  value={newItem.batchId || ''}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
-                    setNewItem(prev => ({ ...prev, batchId: e.target.value ? parseInt(e.target.value) : undefined }))}
-                  options={batchOptions}
-                />
-              )}
-
-              {availableBatches.length === 0 && newItem.productId && newItem.productId > 0 && (
+              {products.length === 0 && formData.storeId > 0 && (
                 <Alert variant="warning">
-                  No hay lotes disponibles para este producto en la tienda seleccionada
+                  No hay productos disponibles en la tienda seleccionada
                 </Alert>
               )}
 
@@ -944,7 +843,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
                 min="1"
                 value={newItem.quantity || 1}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-                  setNewItem(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
+                  setNewItem((prev: Partial<SaleItem>) => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
                 error={errors.newItemQuantity}
               />
 
@@ -959,7 +858,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
                 <Button
                   type="button"
                   onClick={addItemToSale}
-                  disabled={!newItem.productId || availableBatches.length === 0}
+                  disabled={!newItem.productId}
                 >
                   Agregar
                 </Button>
@@ -1067,13 +966,6 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           </Button>
         </div>
       </form>
-
-      {/* Cliente Form Modal */}
-      {/* <ClientForm
-        isOpen={showClientForm}
-        onClose={() => setShowClientForm(false)}
-        onSuccess={handleClientCreated}
-      /> */}
     </Modal>
   );
 };
