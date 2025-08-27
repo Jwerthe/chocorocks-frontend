@@ -18,13 +18,15 @@ import {
   SaleDetailRequest,
   SaleDetailResponse,
   SaleType,
-  ProductStoreResponse
+  ProductStoreResponse,
+  ProductBatchResponse
 } from '@/types';
 import { 
   saleAPI, 
   saleDetailAPI, 
   productAPI, 
-  productStoreAPI
+  productStoreAPI,
+  productBatchAPI
 } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthNumericId } from '@/hooks/useAuthNumericId';
@@ -50,11 +52,13 @@ interface SaleItem {
   id?: number;
   productId: number;
   product?: ProductResponse;
+  batchId?: number;
+  batch?: ProductBatchResponse;
   quantity: number;
   unitPrice: number;
   subtotal: number;
   availableStock: number;
-  productStoreId: number; // Nueva propiedad para identificar la relación producto-tienda
+  productStoreId: number;
 }
 
 interface TableColumn<T> {
@@ -71,6 +75,11 @@ interface ProductStoreInfo {
   stock: number;
   productStoreId: number;
   exists: boolean;
+}
+
+interface BatchInfo {
+  batch: ProductBatchResponse;
+  availableStock: number;
 }
 
 export const SaleForm: React.FC<SaleFormProps> = ({
@@ -110,6 +119,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [productStocks, setProductStocks] = useState<Map<number, number>>(new Map());
+  const [availableBatches, setAvailableBatches] = useState<Map<number, BatchInfo[]>>(new Map());
   const [loading, setLoading] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
@@ -119,6 +129,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
   const [showAddItem, setShowAddItem] = useState<boolean>(false);
   const [newItem, setNewItem] = useState<Partial<SaleItem>>({
     productId: 0,
+    batchId: undefined,
     quantity: 1,
   });
   
@@ -134,6 +145,30 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     const random = Math.random().toString(36).substr(2, 4).toUpperCase();
     
     return `VT-${year}${month}${day}-${random}`;
+  }, []);
+
+  // Función para obtener lotes disponibles por producto en una tienda específica
+  const fetchProductBatches = useCallback(async (productId: number, storeId: number): Promise<BatchInfo[]> => {
+    try {
+      const allBatches = await productBatchAPI.getAllBatches();
+      
+      // Filtrar lotes del producto específico, de la tienda específica y con stock disponible
+      const productBatches = allBatches.filter((batch: ProductBatchResponse) => 
+        batch.product.id === productId && 
+        batch.store?.id === storeId &&
+        batch.isActive &&
+        batch.currentQuantity > 0
+      );
+
+      // Convertir a BatchInfo con stock disponible
+      return productBatches.map((batch: ProductBatchResponse) => ({
+        batch,
+        availableStock: batch.currentQuantity
+      }));
+    } catch (err) {
+      console.error('Error fetching product batches:', err);
+      return [];
+    }
   }, []);
 
   // Función para obtener stock real de ProductStore
@@ -164,14 +199,16 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     if (!storeId || storeId === 0) {
       setProducts([]);
       setProductStocks(new Map());
+      setAvailableBatches(new Map());
       return;
     }
 
     try {
       setLoadingProducts(true);
-      const [allProducts, productStores] = await Promise.all([
+      const [allProducts, productStores, allBatches] = await Promise.all([
         productAPI.getAllProducts(),
-        productStoreAPI.getAllProductStores()
+        productStoreAPI.getAllProductStores(),
+        productBatchAPI.getAllBatches()
       ]);
       
       // Filtrar productos que están disponibles en la tienda seleccionada
@@ -189,7 +226,21 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       });
       
       setProductStocks(stockMap);
+
+      // Crear mapa de lotes disponibles por producto
+      const batchesMap = new Map<number, BatchInfo[]>();
+      
+      for (const product of availableProducts) {
+        const productBatches = await fetchProductBatches(product.id, storeId);
+        if (productBatches.length > 0) {
+          batchesMap.set(product.id, productBatches);
+        }
+      }
+      
+      setAvailableBatches(batchesMap);
+      
       console.log('Productos disponibles en tienda:', availableProducts.length);
+      console.log('Lotes cargados para productos:', batchesMap.size);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error al cargar productos de la tienda';
       setError(errorMessage);
@@ -197,7 +248,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     } finally {
       setLoadingProducts(false);
     }
-  }, []);
+  }, [fetchProductBatches]);
 
   const resetForm = useCallback((): void => {
     setFormData({
@@ -219,9 +270,10 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     setSaleItems([]);
     setErrors({});
     setError('');
-    setNewItem({ productId: 0, quantity: 1 });
+    setNewItem({ productId: 0, batchId: undefined, quantity: 1 });
     setProducts([]);
     setProductStocks(new Map());
+    setAvailableBatches(new Map());
   }, [numericUserId, generateSaleNumber]);
 
   // Cargar detalles de venta usando API separada
@@ -239,14 +291,19 @@ export const SaleForm: React.FC<SaleFormProps> = ({
         
         for (const detail of saleDetails) {
           const productStoreInfo = await getProductStoreStock(detail.product.id, formData.storeId);
+          
           items.push({
             id: detail.id,
             productId: detail.product.id,
             product: detail.product,
+            batchId: detail.batch?.id,
+            batch: detail.batch,
             quantity: detail.quantity,
             unitPrice: Number(detail.unitPrice),
             subtotal: Number(detail.subtotal),
-            availableStock: productStoreInfo.stock + detail.quantity,
+            availableStock: detail.batch ? 
+              detail.batch.currentQuantity + detail.quantity : 
+              productStoreInfo.stock + detail.quantity,
             productStoreId: productStoreInfo.productStoreId
           });
         }
@@ -308,8 +365,30 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     } else {
       setProducts([]);
       setProductStocks(new Map());
+      setAvailableBatches(new Map());
     }
   }, [formData.storeId]);
+
+  // Manejar cambio de producto en el modal de agregar item
+  const handleProductChangeInNewItem = useCallback(async (productId: number): Promise<void> => {
+    setNewItem((prev: Partial<SaleItem>) => ({ 
+      ...prev, 
+      productId, 
+      batchId: undefined // Reset batch when product changes
+    }));
+
+    if (productId > 0 && formData.storeId > 0) {
+      // Cargar lotes para el producto seleccionado si no están cargados
+      if (!availableBatches.has(productId)) {
+        const productBatches = await fetchProductBatches(productId, formData.storeId);
+        setAvailableBatches((prev) => {
+          const newMap = new Map(prev);
+          newMap.set(productId, productBatches);
+          return newMap;
+        });
+      }
+    }
+  }, [formData.storeId, availableBatches, fetchProductBatches]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -346,7 +425,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  // Validación mejorada con ProductStore
+  // Validación mejorada con Batch
   const validateNewItem = useCallback(async (): Promise<boolean> => {
     const newErrors: FormErrors = {};
 
@@ -358,30 +437,41 @@ export const SaleForm: React.FC<SaleFormProps> = ({
       newErrors.newItemQuantity = 'La cantidad debe ser mayor a 0';
     }
 
-    // Validación de stock usando ProductStore
-    if (newItem.productId && newItem.quantity && formData.storeId) {
-      const productStoreInfo = await getProductStoreStock(newItem.productId, formData.storeId);
+    // Validación de lote si hay lotes disponibles
+    if (newItem.productId && availableBatches.has(newItem.productId!)) {
+      const productBatches = availableBatches.get(newItem.productId!)!;
       
-      if (!productStoreInfo.exists) {
-        newErrors.newItemProduct = 'Este producto no está disponible en la tienda seleccionada';
-      } else {
-        const existingItem = saleItems.find((item: SaleItem) => item.productId === newItem.productId);
-        const existingQuantity = existingItem ? existingItem.quantity : 0;
-        const totalRequested = (newItem.quantity || 0) + existingQuantity;
+      if (productBatches.length > 0 && !newItem.batchId) {
+        newErrors.newItemBatch = 'Debe seleccionar un lote para este producto';
+      }
 
-        if (totalRequested > productStoreInfo.stock) {
-          newErrors.newItemQuantity = `Stock insuficiente. Disponible: ${productStoreInfo.stock}, Ya en venta: ${existingQuantity}`;
-        }
+      // Validación de stock del lote específico
+      if (newItem.batchId && newItem.quantity) {
+        const selectedBatch = productBatches.find((bi: BatchInfo) => bi.batch.id === newItem.batchId);
+        
+        if (selectedBatch) {
+          const existingItem = saleItems.find((item: SaleItem) => 
+            item.productId === newItem.productId && item.batchId === newItem.batchId
+          );
+          const existingQuantity = existingItem ? existingItem.quantity : 0;
+          const totalRequested = (newItem.quantity || 0) + existingQuantity;
 
-        if (existingItem) {
-          newErrors.newItemProduct = 'Este producto ya está en la venta. Use "Editar" para cambiar la cantidad.';
+          if (totalRequested > selectedBatch.availableStock) {
+            newErrors.newItemQuantity = `Stock insuficiente en el lote. Disponible: ${selectedBatch.availableStock}, Ya en venta: ${existingQuantity}`;
+          }
+
+          if (existingItem) {
+            newErrors.newItemProduct = 'Esta combinación de producto y lote ya está en la venta. Use "Editar" para cambiar la cantidad.';
+          }
+        } else {
+          newErrors.newItemBatch = 'Lote seleccionado no válido';
         }
       }
     }
 
     setErrors((prev: FormErrors) => ({ ...prev, ...newErrors }));
     return Object.keys(newErrors).length === 0;
-  }, [newItem.productId, newItem.quantity, formData.storeId, saleItems, getProductStoreStock]);
+  }, [newItem.productId, newItem.batchId, newItem.quantity, availableBatches, saleItems]);
 
   const addItemToSale = useCallback(async (): Promise<void> => {
     if (!(await validateNewItem())) return;
@@ -405,29 +495,45 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     const quantity = newItem.quantity || 1;
     const subtotal = unitPrice * quantity;
     
-    // Obtener información del ProductStore
-    const productStoreInfo = await getProductStoreStock(newItem.productId!, formData.storeId);
+    // Obtener información del lote si fue seleccionado
+    let selectedBatch: ProductBatchResponse | undefined;
+    let availableStock = 0;
+
+    if (newItem.batchId && availableBatches.has(newItem.productId)) {
+      const productBatches = availableBatches.get(newItem.productId)!;
+      const batchInfo = productBatches.find((bi: BatchInfo) => bi.batch.id === newItem.batchId);
+      if (batchInfo) {
+        selectedBatch = batchInfo.batch;
+        availableStock = batchInfo.availableStock;
+      }
+    } else {
+      // Si no hay lote, usar stock general del ProductStore
+      const productStoreInfo = await getProductStoreStock(newItem.productId!, formData.storeId);
+      availableStock = productStoreInfo.stock;
+    }
 
     const item: SaleItem = {
       productId: product.id,
       product,
+      batchId: selectedBatch?.id,
+      batch: selectedBatch,
       quantity,
       unitPrice,
       subtotal,
-      availableStock: productStoreInfo.stock,
-      productStoreId: productStoreInfo.productStoreId
+      availableStock,
+      productStoreId: 0 // Se establecerá según sea necesario
     };
 
     setSaleItems((prev: SaleItem[]) => [...prev, item]);
-    setNewItem({ productId: 0, quantity: 1 });
+    setNewItem({ productId: 0, batchId: undefined, quantity: 1 });
     setShowAddItem(false);
     
     // Clear any item-related errors
     setErrors((prev: FormErrors) => {
-      const { newItemProduct, newItemQuantity, items, ...rest } = prev;
+      const { newItemProduct, newItemBatch, newItemQuantity, items, ...rest } = prev;
       return rest;
     });
-  }, [validateNewItem, products, newItem.productId, newItem.quantity, formData.saleType, formData.storeId, getProductStoreStock]);
+  }, [validateNewItem, products, newItem, formData.saleType, formData.storeId, availableBatches, getProductStoreStock]);
 
   const removeItemFromSale = useCallback((index: number): void => {
     setSaleItems((prev: SaleItem[]) => prev.filter((_, i: number) => i !== index));
@@ -439,11 +545,18 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     const item = saleItems[index];
     if (!item) return;
 
-    // Validar stock disponible en ProductStore
-    const productStoreInfo = await getProductStoreStock(item.productId, formData.storeId);
-    
-    if (newQuantity > productStoreInfo.stock) {
-      setError(`Stock insuficiente para ${item.product?.nameProduct}. Disponible: ${productStoreInfo.stock}`);
+    // Validar stock disponible del lote específico o ProductStore
+    let maxStock = 0;
+    if (item.batchId && item.batch) {
+      maxStock = item.batch.currentQuantity;
+    } else {
+      const productStoreInfo = await getProductStoreStock(item.productId, formData.storeId);
+      maxStock = productStoreInfo.stock;
+    }
+
+    if (newQuantity > maxStock) {
+      const stockSource = item.batch ? `lote ${item.batch.batchCode}` : 'tienda';
+      setError(`Stock insuficiente para ${item.product?.nameProduct} en ${stockSource}. Disponible: ${maxStock}`);
       return;
     }
 
@@ -467,16 +580,20 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     setError('');
 
     try {
-      // Validación final de stock para todos los items usando ProductStore
+      // Validación final de stock para todos los items usando lotes
       for (const item of saleItems) {
-        const productStoreInfo = await getProductStoreStock(item.productId, formData.storeId);
-        
-        if (!productStoreInfo.exists) {
-          throw new Error(`El producto ${item.product?.nameProduct} no está disponible en la tienda seleccionada`);
-        }
-        
-        if (item.quantity > productStoreInfo.stock) {
-          throw new Error(`Stock insuficiente para ${item.product?.nameProduct}. Disponible: ${productStoreInfo.stock}, Solicitado: ${item.quantity}`);
+        if (item.batchId && item.batch) {
+          if (item.quantity > item.batch.currentQuantity) {
+            throw new Error(`Stock insuficiente en lote ${item.batch.batchCode} para ${item.product?.nameProduct}. Disponible: ${item.batch.currentQuantity}, Solicitado: ${item.quantity}`);
+          }
+        } else {
+          const productStoreInfo = await getProductStoreStock(item.productId, formData.storeId);
+          if (!productStoreInfo.exists) {
+            throw new Error(`El producto ${item.product?.nameProduct} no está disponible en la tienda seleccionada`);
+          }
+          if (item.quantity > productStoreInfo.stock) {
+            throw new Error(`Stock insuficiente para ${item.product?.nameProduct}. Disponible: ${productStoreInfo.stock}, Solicitado: ${item.quantity}`);
+          }
         }
       }
 
@@ -511,11 +628,12 @@ export const SaleForm: React.FC<SaleFormProps> = ({
         savedSale = await saleAPI.createSale(saleData);
       }
 
-      // Guardar detalles sin batchId
+      // Guardar detalles CON batchId
       for (const item of saleItems) {
         const saleDetailData: SaleDetailRequest = {
           saleId: savedSale.id,
           productId: item.productId,
+          batchId: item.batchId, // 🔥 AQUÍ SE INCLUYE EL BATCH ID
           quantity: item.quantity,
         };
 
@@ -596,6 +714,27 @@ export const SaleForm: React.FC<SaleFormProps> = ({
     })
   ];
 
+  // Opciones de lotes para el producto seleccionado en newItem
+  const batchOptions: SelectOption[] = (() => {
+    if (!newItem.productId || !availableBatches.has(newItem.productId)) {
+      return [{ value: '', label: 'No hay lotes disponibles' }];
+    }
+
+    const productBatches = availableBatches.get(newItem.productId)!;
+    
+    if (productBatches.length === 0) {
+      return [{ value: '', label: 'No hay lotes disponibles' }];
+    }
+
+    return [
+      { value: '', label: 'Seleccionar lote...' },
+      ...productBatches.map((batchInfo: BatchInfo) => ({
+        value: batchInfo.batch.id,
+        label: `${batchInfo.batch.batchCode} - Stock: ${batchInfo.availableStock} - Vence: ${formatters.date(batchInfo.batch.expirationDate, 'short')}`
+      }))
+    ];
+  })();
+
   // Opciones de método de pago
   const paymentMethodOptions: SelectOption[] = [
     { value: '', label: 'Seleccionar método de pago...' },
@@ -636,6 +775,11 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           <div className="text-sm text-gray-500">
             {item.product?.flavor} - {item.product?.size}
           </div>
+          {item.batch && (
+            <div className="text-xs text-blue-600 font-mono">
+              Lote: {item.batch.batchCode}
+            </div>
+          )}
           <div className="text-xs text-gray-600">
             Stock disponible: {item.availableStock}
           </div>
@@ -692,6 +836,27 @@ export const SaleForm: React.FC<SaleFormProps> = ({
 
   const isUserValid = Boolean(formData.userId && formData.userId.trim() !== '');
 
+  const handleSelectChange = (field: string) => (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    switch (field) {
+      case 'userId':
+        handleInputChange('userId', value);
+        break;
+      case 'storeId':
+        handleInputChange('storeId', parseInt(value) || 0);
+        break;
+      case 'saleType':
+        handleInputChange('saleType', value as SaleType);
+        break;
+      case 'paymentMethod':
+        handleInputChange('paymentMethod', value);
+        break;
+      case 'clientId':
+        handleInputChange('clientId', value ? parseInt(value) : undefined);
+        break;
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -730,8 +895,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           <Select
             label="Vendedor*"
             value={formData.userId}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
-              handleInputChange('userId', e.target.value)}
+            onChange={handleSelectChange('userId')}
             options={userOptions}
             error={errors.userId}
           />
@@ -739,8 +903,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           <Select
             label="Tienda*"
             value={formData.storeId}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
-              handleInputChange('storeId', parseInt(e.target.value) || 0)}
+            onChange={handleSelectChange('storeId')}
             options={storeOptions}
             error={errors.storeId}
           />
@@ -748,8 +911,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           <Select
             label="Tipo de Venta"
             value={formData.saleType}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
-              handleInputChange('saleType', e.target.value as SaleType)}
+            onChange={handleSelectChange('saleType')}
             options={saleTypeOptions}
           />
 
@@ -757,8 +919,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           <Select
             label="Método de Pago*"
             value={formData.paymentMethod}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
-              handleInputChange('paymentMethod', e.target.value)}
+            onChange={handleSelectChange('paymentMethod')}
             options={paymentMethodOptions}
             error={errors.paymentMethod}
             className="md:col-span-2"
@@ -770,8 +931,7 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           <Select
             label="Cliente"
             value={formData.clientId || ''}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
-              handleInputChange('clientId', e.target.value ? parseInt(e.target.value) : undefined)}
+            onChange={handleSelectChange('clientId')}
             options={clientOptions}
             className="flex-1"
           />
@@ -812,13 +972,13 @@ export const SaleForm: React.FC<SaleFormProps> = ({
           )}
         </div>
 
-        {/* Modal para agregar producto */}
+        {/* Modal para agregar producto con LOTE */}
         {showAddItem && (
           <Modal
             isOpen={showAddItem}
             onClose={() => {
               setShowAddItem(false);
-              setNewItem({ productId: 0, quantity: 1 });
+              setNewItem({ productId: 0, batchId: undefined, quantity: 1 });
             }}
             title="Agregar Producto"
             size="md"
@@ -828,10 +988,26 @@ export const SaleForm: React.FC<SaleFormProps> = ({
                 label="Producto*"
                 value={newItem.productId || 0}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
-                  setNewItem((prev: Partial<SaleItem>) => ({ ...prev, productId: parseInt(e.target.value) || 0 }))}
+                  handleProductChangeInNewItem(parseInt(e.target.value) || 0)}
                 options={productOptions}
                 error={errors.newItemProduct}
               />
+
+              {/* Selector de Lote - Solo se muestra si hay lotes disponibles */}
+              {newItem.productId && availableBatches.has(newItem.productId) && 
+               availableBatches.get(newItem.productId)!.length > 0 && (
+                <Select
+                  label="Lote*"
+                  value={newItem.batchId || ''}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => 
+                    setNewItem((prev: Partial<SaleItem>) => ({ 
+                      ...prev, 
+                      batchId: e.target.value ? parseInt(e.target.value) : undefined 
+                    }))}
+                  options={batchOptions}
+                  error={errors.newItemBatch}
+                />
+              )}
 
               {products.length === 0 && formData.storeId > 0 && (
                 <Alert variant="warning">
@@ -860,7 +1036,10 @@ export const SaleForm: React.FC<SaleFormProps> = ({
                 <Button
                   type="button"
                   onClick={addItemToSale}
-                  disabled={!newItem.productId}
+                  disabled={!newItem.productId || 
+                    (availableBatches.has(newItem.productId) && 
+                     availableBatches.get(newItem.productId)!.length > 0 && 
+                     !newItem.batchId)}
                 >
                   Agregar
                 </Button>
