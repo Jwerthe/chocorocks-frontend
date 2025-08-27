@@ -14,6 +14,7 @@ import { ProductBatchForm } from './ProductBatchForm';
 import { InventoryMovementForm } from './InventoryMovementForm';
 import { InventoryMovementsList } from './InventoryMovementsList';
 import { ProductStoreList } from './ProductStoreList';
+import { ProductStoreForm } from './ProductStoreForm';
 import { 
   ProductBatchResponse, 
   StoreResponse, 
@@ -39,6 +40,8 @@ export const InventoryList: React.FC = () => {
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+
+  const [showProductStoreForm, setShowProductStoreForm] = useState<boolean>(false);
   
   // Estados de formularios
   const [showBatchForm, setShowBatchForm] = useState<boolean>(false);
@@ -57,6 +60,10 @@ export const InventoryList: React.FC = () => {
     showExpiring: false,
     showLowStock: false,
   });
+
+  const handleProductStoreFormSuccess = (): void => {
+    success('Producto agregado a tienda correctamente');
+  };
 
   const { success, error: notifyError } = useNotification();
 
@@ -391,6 +398,12 @@ export const InventoryList: React.FC = () => {
             - Salida
           </Button>
           */}
+            <Button
+            variant="secondary"
+            onClick={() => setShowProductStoreForm(true)}
+          >
+            + Agregar a Tienda
+          </Button>
           <Button
             variant="outline"
             onClick={() => openMovementForm(MovementType.TRANSFER)}
@@ -560,6 +573,12 @@ export const InventoryList: React.FC = () => {
         confirmText="Eliminar"
         cancelText="Cancelar"
         variant="danger"
+      />
+
+      <ProductStoreForm
+        isOpen={showProductStoreForm}
+        onClose={() => setShowProductStoreForm(false)}
+        onSuccess={handleProductStoreFormSuccess}
       />
     </div>
   );

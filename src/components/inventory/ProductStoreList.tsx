@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
+import { ProductStoreForm } from './ProductStoreForm';
 import { BackendErrorHandler } from '../common/BackendErrorHandler';
 import { 
   ProductStoreResponse, 
@@ -75,7 +76,11 @@ export const ProductStoreList: React.FC = () => {
   const [editingProductStore, setEditingProductStore] = useState<EditStockFormData | null>(null);
   const [editLoading, setEditLoading] = useState<boolean>(false);
   const [editErrors, setEditErrors] = useState<FormErrors>({});
-  
+
+  // Estados para formulario
+  const [showProductStoreForm, setShowProductStoreForm] = useState<boolean>(false);
+  const [editingProductStoreForm, setEditingProductStoreForm] = useState<ProductStoreResponse | null>(null);
+    
   const [filters, setFilters] = useState<ProductStoreFilters>({
     search: '',
     storeId: undefined,
@@ -262,81 +267,112 @@ export const ProductStoreList: React.FC = () => {
     { value: 'critical', label: 'Stock Crítico' },
     { value: 'out', label: 'Sin Stock' },
   ];
+  // Funciones para ProductStoreForm
+  const handleEditProductStore = (productStore: ProductStoreResponse): void => {
+    setEditingProductStoreForm(productStore);
+    setShowProductStoreForm(true);
+  };
+
+  const handleProductStoreFormClose = (): void => {
+    setShowProductStoreForm(false);
+    setEditingProductStoreForm(null);
+  };
+
+  const handleProductStoreFormSuccess = (): void => {
+    fetchAllData();
+    success(editingProductStoreForm ? 'Relación actualizada correctamente' : 'Producto agregado a tienda correctamente');
+  };
 
   // ✅ TABLA COLUMNS SIMPLIFICADA (SIN STOCK MÍNIMO)
   const columns: TableColumn<ProductStoreResponse>[] = [
-    {
-      key: 'store.name',
-      header: 'Tienda',
-      render: (value: unknown, row: ProductStoreResponse): React.ReactNode => (
-        <div>
-          <div className="font-medium text-gray-800">{String(value)}</div>
-          <div className="text-sm text-gray-600">{row.store.address}</div>
+  {
+    key: 'store.name',
+    header: 'Tienda',
+    render: (value: unknown, row: ProductStoreResponse): React.ReactNode => (
+      <div>
+        <div className="font-medium text-gray-800">{String(value)}</div>
+        <div className="text-sm text-gray-600">{row.store.address}</div>
+      </div>
+    ),
+  },
+  {
+    key: 'product.nameProduct',
+    header: 'Producto',
+    render: (value: unknown, row: ProductStoreResponse): React.ReactNode => (
+      <div>
+        <div className="font-medium text-gray-800">{String(value)}</div>
+        <div className="text-sm text-gray-600">
+          {row.product.flavor && `${row.product.flavor} - `}
+          {row.product.category.name}
         </div>
-      ),
-    },
-    {
-      key: 'product.nameProduct',
-      header: 'Producto',
-      render: (value: unknown, row: ProductStoreResponse): React.ReactNode => (
-        <div>
-          <div className="font-medium text-gray-800">{String(value)}</div>
-          <div className="text-sm text-gray-600">
-            {row.product.flavor && `${row.product.flavor} - `}
-            {row.product.category.name}
+        <div className="text-xs text-blue-600 font-mono">
+          Código: {row.product.code}
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: 'currentStock',
+    header: 'Stock Actual',
+    render: (value: unknown, row: ProductStoreResponse): React.ReactNode => {
+      const stockInfo = getStockStatus(row.currentStock, row.minStockLevel);
+      return (
+        <div className="text-center">
+          <div className={`font-bold text-lg ${
+            stockInfo.status === 'normal' ? 'text-green-600' : 
+            stockInfo.status === 'low' ? 'text-yellow-600' : 
+            stockInfo.status === 'critical' ? 'text-orange-600' : 'text-red-600'
+          }`}>
+            {Number(value)}
           </div>
-          <div className="text-xs text-blue-600 font-mono">
-            Código: {row.product.code}
-          </div>
+          <Badge variant={stockInfo.variant} size="sm">
+            {stockInfo.label}
+          </Badge>
         </div>
-      ),
+      );
     },
-    // {
-    //   key: 'currentStock',
-    //   header: 'Stock Actual',
-    //   render: (value: unknown, row: ProductStoreResponse): React.ReactNode => {
-    //     const stockInfo = getStockStatus(row.currentStock, row.minStockLevel);
-    //     return (
-    //       <div className="text-center">
-    //         <div className={`font-bold text-lg ${
-    //           stockInfo.status === 'normal' ? 'text-green-600' : 
-    //           stockInfo.status === 'low' ? 'text-yellow-600' : 
-    //           stockInfo.status === 'critical' ? 'text-orange-600' : 'text-red-600'
-    //         }`}>
-    //           {Number(value)}
-    //         </div>
-    //         <Badge variant={stockInfo.variant} size="sm">
-    //           {stockInfo.label}
-    //         </Badge>
-    //       </div>
-    //     );
-    //   },
-    // },
-    {
-      key: 'lastUpdated',
-      header: 'Última Actualización',
-      render: (value: unknown): React.ReactNode => (
-        <span className="text-sm text-gray-600">
-          {formatters.date(String(value), 'short')}
-        </span>
-      ),
-    },
-    {
-      key: 'actions',
-      header: 'Acciones',
-      render: (_: unknown, row: ProductStoreResponse): React.ReactNode => (
-        <div className="flex justify-center">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleEditStock(row)}
-          >
-            Editar Stock
-          </Button>
-        </div>
-      ),
-    },
-  ];
+  },
+  // {
+  //   key: 'minStockLevel',
+  //   header: 'Stock Mínimo',
+  //   render: (value: unknown): React.ReactNode => (
+  //     <div className="text-center">
+  //       <span className="text-gray-700 font-medium">{Number(value)}</span>
+  //     </div>
+  //   ),
+  // },
+  {
+    key: 'lastUpdated',
+    header: 'Última Actualización',
+    render: (value: unknown): React.ReactNode => (
+      <span className="text-sm text-gray-600">
+        {formatters.date(String(value), 'short')}
+      </span>
+    ),
+  },
+  {
+    key: 'actions',
+    header: 'Acciones',
+    render: (_: unknown, row: ProductStoreResponse): React.ReactNode => (
+      <div className="flex justify-center space-x-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleEditStock(row)}
+        >
+          Editar Stock
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => handleEditProductStore(row)}
+        >
+          Editar Relación
+        </Button>
+      </div>
+    ),
+  },
+];
 
   // Summary calculations
   const summaryStats = {
@@ -370,6 +406,12 @@ export const ProductStoreList: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             Actualizar
+          </Button>
+          <Button 
+            onClick={() => setShowProductStoreForm(true)}
+            className="w-full sm:w-auto"
+          >
+            + Agregar Producto a Tienda
           </Button>
         </div>
       </div>
@@ -570,6 +612,13 @@ export const ProductStoreList: React.FC = () => {
           </div>
         )}
       </Modal>
+      {/* ProductStore Form Modal */}
+      <ProductStoreForm
+        isOpen={showProductStoreForm}
+        onClose={handleProductStoreFormClose}
+        onSuccess={handleProductStoreFormSuccess}
+        editingProductStore={editingProductStoreForm}
+      />
     </div>
   );
 };
